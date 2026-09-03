@@ -17,4 +17,6 @@ https://yylin1.github.io/ziwei-love-chart/
 
 ## 說明
 
-排盤核心使用 [iztro](https://github.com/SylarLong/iztro)。結果屬傳統文化與自我探索參考，年份指數是相對訊號，不是事件發生機率。
+排盤核心固定使用 [iztro 2.6.0](https://github.com/SylarLong/iztro)（MIT License）。iztro 提供十二宮、星曜、亮度、四化與運限等基礎盤面資料；本站的七大面向文字、感情年份計分與建議屬應用端自訂解讀，並非 iztro 的原始輸出。完整第三方聲明請見 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+
+紫微斗數流派與設定可能不同，結果屬傳統文化與自我探索參考；年份指數是相對訊號，不是事件發生機率。

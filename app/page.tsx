@@ -565,6 +565,15 @@ export default function Home() {
         <div className="audit-next"><div><b>目前可放心比較</b><p>十二宮位置、主星組合、空宮借星、四化與大限區間。</p></div><div><b>仍須標示口徑</b><p>性格文案、正緣輪廓、年份權重與行動建議。</p></div><div><b>下一階段</b><p>加入完整三方四正、流月、派別設定與固定測試案例。</p></div></div>
       </div>
 
+      <div className="data-source-panel">
+        <div className="data-source-heading"><span className="eyebrow">OPEN DATA &amp; METHOD</span><h2>排盤資料從哪裡來</h2><p>基礎命盤與本站解讀分開標示，讓每一層結果都能追溯，也避免把自訂分析誤認成傳統唯一公式。</p></div>
+        <div className="data-source-grid">
+          <article><small>排盤核心</small><h3>iztro 2.6.0</h3><p>使用開源 JavaScript 排盤庫，依國曆／農曆、時辰與性別計算十二宮、星曜、亮度、四化、大限及流年資料。本站已固定版本，部署結果可重現。</p><a href="https://github.com/SylarLong/iztro" target="_blank" rel="noreferrer">查看 GitHub 原始碼 <ArrowRight size={13}/></a></article>
+          <article><small>授權方式</small><h3>MIT License</h3><p>iztro 允許使用、修改與散布；本站保留其開源專案與授權資訊。紫微斗數有不同流派，四化和星曜亮度設定可能存在差異。</p><a href="https://github.com/SylarLong/iztro/blob/main/LICENSE" target="_blank" rel="noreferrer">查看授權全文 <ArrowRight size={13}/></a></article>
+          <article><small>資料邊界</small><h3>本站自訂分析</h3><p>七大面向文字、正緣年份權重、對象輪廓與行動建議由本站依盤面訊號映射，不是 iztro 內建結論，也不是經統計驗證的人生預測。</p><a href="https://docs.iztro.com/zh_TW/quick-start" target="_blank" rel="noreferrer">查看官方資料結構 <ArrowRight size={13}/></a></article>
+        </div>
+      </div>
+
       <div className="guide-source"><Info size={16}/><p>本區依公開可見的課程介紹與紫微斗數常用閱讀概念重新整理，未複製受限制的課程內文。延伸閱讀：<a href="https://course.taotaoxi.net/posts/91490bd2-cb9c-4f60-833b-867832e7e142" target="_blank" rel="noreferrer">桃桃喜〈紫微斗數｜學前指南〉</a>（可能需要登入）。</p></div>
     </section>
     <footer><div className="brand"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></div><p>以傳統星學為鏡，照見當下的自己。</p><button type="button" onClick={() => window.scrollTo({top:0,behavior:'smooth'})}><RotateCcw size={14}/> 重新排盤</button></footer>
