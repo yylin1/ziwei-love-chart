@@ -257,7 +257,7 @@ function PalaceCard({ palace, active, onSelect }: { palace: IFunctionalPalace; a
   </button>;
 }
 
-export default function Home() {
+export function FullChartPage() {
   const [name, setName] = useState('');
   const [reportName, setReportName] = useState('命盤主人');
   const [date, setDate] = useState('1990-08-17');
@@ -321,7 +321,7 @@ export default function Home() {
   return <main>
     <header className="site-header">
       <a className="brand" href="#top" aria-label="紫微命盤首頁"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a>
-      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#decision">命運導航</a><a href="#love-timing">正緣時機</a><a href="#full-report">完整報告</a><a href="#guide">學前指南</a><a href="./consult/">AI 問答</a></nav>
+      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#decision">命運導航</a><a href="#love-timing">正緣時機</a><a href="#full-report">完整報告</a><a href="#guide">學前指南</a><a href="../consult/">AI 問答</a></nav>
     </header>
 
     <section className="hero love-entry" id="top">
@@ -376,7 +376,7 @@ export default function Home() {
         <article><small>{new Date().getFullYear()} 感情訊號</small><h3>{currentYearLove?.level || '沉澱觀察'}</h3><p>{currentYearLove ? `${currentYearLove.score}/10・${currentYearLove.scene}。` : '今年以日常互動與關係品質為主要觀察。'}分數代表相對活躍度，不是成功率。</p></article>
         <article className="current-advice"><small>現在建議</small><h3>{loveAdvice.title}</h3><p>{loveAdvice.steps[0]}{nextLoveOpportunity && nextLoveOpportunity.year !== new Date().getFullYear() ? ` 下一個較集中的參考年份為 ${nextLoveOpportunity.year} 年。` : ''}</p></article>
       </div>
-      <div className="summary-shortcuts"><a href="#report">快速選擇七大分析 <ArrowRight size={14}/></a><a href="#love-timing">查看正緣年份 <ArrowRight size={14}/></a><a href="#full-report">閱讀完整報告 <ArrowRight size={14}/></a><a href="./consult/">開啟命盤 AI 問答 <ArrowRight size={14}/></a></div>
+      <div className="summary-shortcuts"><a href="#report">快速選擇七大分析 <ArrowRight size={14}/></a><a href="#love-timing">查看正緣年份 <ArrowRight size={14}/></a><a href="#full-report">閱讀完整報告 <ArrowRight size={14}/></a><a href="../consult/">開啟命盤 AI 問答 <ArrowRight size={14}/></a></div>
     </section>
 
     <section className="chart-section" id="chart">
@@ -577,5 +577,98 @@ export default function Home() {
       <div className="guide-source"><Info size={16}/><p>本區依公開可見的課程介紹與紫微斗數常用閱讀概念重新整理，未複製受限制的課程內文。延伸閱讀：<a href="https://course.taotaoxi.net/posts/91490bd2-cb9c-4f60-833b-867832e7e142" target="_blank" rel="noreferrer">桃桃喜〈紫微斗數｜學前指南〉</a>（可能需要登入）。</p></div>
     </section>
     <footer><div className="brand"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></div><p>以傳統星學為鏡，照見當下的自己。</p><button type="button" onClick={() => window.scrollTo({top:0,behavior:'smooth'})}><RotateCcw size={14}/> 重新排盤</button></footer>
+  </main>;
+}
+
+export default function LoveHome() {
+  const [name, setName] = useState('');
+  const [date, setDate] = useState('1990-08-17');
+  const [hour, setHour] = useState(6);
+  const [gender, setGender] = useState<Gender>('男');
+  const [calendar, setCalendar] = useState<CalendarType>('solar');
+  const [leap, setLeap] = useState(false);
+  const [loveStatus, setLoveStatus] = useState<LoveStatus>('single');
+  const [chart, setChart] = useState(() => makeChart('1990-08-17', 6, '男', 'solar', false));
+  const [hasResult, setHasResult] = useState(false);
+  const [error, setError] = useState('');
+  const forecast = useMemo(() => buildLoveForecast(chart), [chart]);
+  const currentYear = new Date().getFullYear();
+  const horizonYears = [0,1,5,10].map((offset) => forecast.years.find((item) => item.year === currentYear + offset)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const visibleWindows = horizonYears.filter((item) => item.score >= 6);
+  const fallbackWindows = forecast.topYears.filter((item) => item.year >= currentYear && item.score >= 6).slice(0,3);
+  const timingWindows = visibleWindows.length ? visibleWindows : fallbackWindows;
+  const bestWindow = [...forecast.years].filter((item) => item.year >= currentYear).sort((a,b) => b.score - a.score || a.year - b.year)[0];
+  const meetingScenes = [...new Set(timingWindows.map((item) => item.scene))].slice(0,3);
+  const advice = LOVE_STATUS_ADVICE[loveStatus];
+  const displayName = name.trim() || '你';
+
+  function submitLove(event: FormEvent) {
+    event.preventDefault();
+    try {
+      setChart(makeChart(date, hour, gender, calendar, leap));
+      setHasResult(true);
+      setError('');
+      requestAnimationFrame(() => document.querySelector('#love-results')?.scrollIntoView({behavior:'smooth',block:'start'}));
+    } catch { setError('出生日期無法排盤，請重新核對後再試一次。'); }
+  }
+
+  return <main className="love-home">
+    <header className="love-nav">
+      <a href="#love-top" className="love-brand"><span><Heart size={18} fill="currentColor"/></span><b>真命指南</b></a>
+      <nav aria-label="主選單"><a href="#love-form">開始測算</a><a href="#how-it-works">分析方式</a><a href="./consult/">命盤問答</a><a href="./chart/" className="quiet-link">進階命盤</a></nav>
+    </header>
+
+    <section className="love-home-hero" id="love-top">
+      <div className="love-home-copy">
+        <span className="love-pill"><Sparkles size={13}/> 感情方向與正緣時機</span>
+        <h1>什麼時候，<br/><em>會遇見對的人？</em></h1>
+        <p>從你的關係需要、緣分活躍年份與生活場景，整理一份能帶回現實使用的真命指南。</p>
+        <div className="love-proof"><span><ShieldCheck size={15}/> 瀏覽器內運算</span><span><Compass size={15}/> 結論附有依據</span><span><Heart size={15}/> 不做必然預言</span></div>
+      </div>
+
+      <form className="love-start-card" id="love-form" onSubmit={submitLove}>
+        <div className="love-form-title"><small>START HERE</small><h2>先告訴我你的出生資料</h2><p>約 30 秒，送出後直接看到完整感情總結。</p></div>
+        <label><span>如何稱呼你（選填）</span><div className="control"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="暱稱即可" maxLength={24}/></div></label>
+        <div className="segmented"><button type="button" className={calendar === 'solar' ? 'selected' : ''} onClick={() => setCalendar('solar')}>國曆</button><button type="button" className={calendar === 'lunar' ? 'selected' : ''} onClick={() => setCalendar('lunar')}>農曆</button></div>
+        <label><span>出生日期</span><div className="control"><CalendarDays size={17}/><input type="date" value={date} onChange={(event) => setDate(event.target.value)} min="1900-01-01" max="2100-12-31" required/></div></label>
+        <div className="love-form-row"><label><span>出生時辰</span><div className="control"><select value={hour} onChange={(event) => setHour(Number(event.target.value))}>{HOURS.map((label,index) => <option value={index} key={label}>{label}</option>)}</select><ChevronDown size={16}/></div></label><fieldset><legend>性別</legend><div className="gender-choice"><button type="button" className={gender === '男' ? 'selected' : ''} onClick={() => setGender('男')}>男</button><button type="button" className={gender === '女' ? 'selected' : ''} onClick={() => setGender('女')}>女</button></div></fieldset></div>
+        {calendar === 'lunar' && <label className="check"><input type="checkbox" checked={leap} onChange={(event) => setLeap(event.target.checked)}/> 此日期為閏月</label>}
+        <div className="love-status-field"><span>目前感情狀態</span><div>{(Object.keys(LOVE_STATUS_ADVICE) as LoveStatus[]).map((status) => <button type="button" className={loveStatus === status ? 'selected' : ''} key={status} onClick={() => setLoveStatus(status)}>{LOVE_STATUS_ADVICE[status].label}</button>)}</div></div>
+        {error && <p className="love-form-error">{error}</p>}
+        <button className="love-main-cta" type="submit"><Heart size={17} fill="currentColor"/> 看我的正緣時機 <ArrowRight size={17}/></button>
+        <p className="love-local-note"><LockKeyhole size={13}/> 資料不會上傳、儲存或出現在網址中</p>
+      </form>
+    </section>
+
+    <section className={`love-results-home ${hasResult ? 'is-visible' : ''}`} id="love-results" aria-hidden={!hasResult}>
+      <div className="result-intro">
+        <span className="result-number">你的感情報告</span><h2>{displayName}，你真正要找的，<br/>不是一個完美的人。</h2>
+        <p>{forecast.partnerProfile}</p><p>{forecast.relationshipNeed}</p>
+        <blockquote>對你來說，適合的關係不是靠猜測維持，而是兩個人能在心動以外，持續回應、說清需要，也願意一起面對差異。年份提供的是「更適合行動的窗口」，真正決定關係品質的，仍是你如何選擇與經營。</blockquote>
+        {bestWindow && <div className="intro-highlight"><span>最值得留意的近期窗口</span><b>{bestWindow.year}</b><p>{bestWindow.scene}，先觀察穩定行動，再決定是否投入。</p></div>}
+      </div>
+
+      <div className="result-four-heading"><small>FOUR RESULTS</small><h2>你最想知道的四件事</h2><p>先看結論，再依需要展開細節。</p></div>
+      <div className="result-four-grid">
+        <article className="result-block timing-result"><span className="result-icon"><CalendarDays size={20}/></span><small>01・WHEN</small><h3>什麼時候比較容易遇見？</h3>{timingWindows.length > 0 && <div className="horizon-list">{timingWindows.map((item) => <div key={item.year}><span>{item.year === currentYear ? '現在' : `+${item.year-currentYear} 年`}</span><b>{item.year}</b><strong>{item.level}</strong><p>{item.signals.join('・') || '生活圈互動增加'}</p></div>)}</div>}<p className="result-note">只呈現訊號較集中的年份，分數代表相對活躍度，不是遇見或結婚機率。</p></article>
+        <article className="result-block"><span className="result-icon"><MapPin size={20}/></span><small>02・WHERE</small><h3>什麼場合容易發生？</h3><div className="scene-list">{meetingScenes.map((scene,index) => <div key={scene}><span>0{index+1}</span><p>{scene}</p></div>)}</div><p className="result-note">適合選擇能重複見面、自然合作的場域，比一次性的陌生社交更容易看清彼此。</p></article>
+        <article className="result-block"><span className="result-icon"><Users size={20}/></span><small>03・WHO</small><h3>怎麼辨認適合的人？</h3><p className="result-lead">{forecast.partnerTraits.slice(0,2).join('，') || '重視承諾、願意溝通，也能尊重你的生活節奏。'}</p><ul><li>看對方是否穩定回應，而不只看熱情。</li><li>觀察遇到差異時，能不能好好說話。</li><li>{forecast.relationshipChallenges[0] || '確認彼此對界線與未來的理解。'}</li></ul></article>
+        <article className="result-block action-result"><span className="result-icon"><Compass size={20}/></span><small>04・HOW</small><h3>現在可以怎麼做？</h3><p className="result-lead">{advice.title}</p><ol>{advice.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol></article>
+      </div>
+
+      <div className="result-next"><div><small>想繼續問</small><h3>把現在的困惑帶進命盤問答</h3><p>選擇日期與時辰，從本命、大限、流年到流時逐層查看。</p></div><a href="./consult/">開啟問答 <ArrowRight size={15}/></a></div>
+    </section>
+
+    <section className="love-method" id="how-it-works">
+      <div className="love-method-heading"><small>MORE DETAILS</small><h2>細節放在需要的地方</h2><p>首頁只保留做感情決定真正會用到的資訊，完整紫微資料則收進進階頁面。</p></div>
+      <div className="love-details">
+        <details><summary><span>01</span>相遇年份怎麼判斷？<b>＋</b></summary><p>以夫妻宮為主題，綜合流年夫妻宮落點、紅鸞天喜、祿與貴人曜、四化及夫妻大限。只有訊號達到門檻才顯示，不用單一星曜直接斷定事件。</p></details>
+        <details><summary><span>02</span>場合方向從哪裡來？<b>＋</b></summary><p>依流年夫妻宮落入的本命宮位轉譯生活場景，例如官祿偏工作專案、僕役偏朋友社群、遷移偏外出旅行；這是行動方向，不是指定地點。</p></details>
+        <details><summary><span>03</span>為什麼不寫外貌或姓氏？<b>＋</b></summary><p>外貌、姓氏與某位明星的對照難以從命盤穩定驗證，因此不列為核心答案。辨識建議以溝通、責任、界線與長期行動為主。</p></details>
+        <details><summary><span>04</span>想看完整紫微資料？<b>＋</b></summary><p>十二宮、星曜、四化、七大面向、來源與系統狀態仍完整保留，改放在進階命盤頁，不干擾主要的感情查詢流程。</p><a href="./chart/">前往進階命盤 <ArrowRight size={13}/></a></details>
+      </div>
+    </section>
+
+    <footer className="love-footer"><a href="#love-top" className="love-brand"><span><Heart size={16} fill="currentColor"/></span><b>真命指南</b></a><p>命盤提供提問方向，關係仍需要真實理解與選擇。</p><a href="./chart/">進階命盤資料庫</a></footer>
   </main>;
 }
