@@ -31,7 +31,7 @@ const STAR_PROFILES: Record<string, { gift: string; watch: string }> = {
 
 const LOVE_STAR_PROFILES: Record<string, { partner: string; vibe: string; relationship: string; challenge: string }> = {
   紫微: { partner: '有主見、重視品質與承擔', vibe: '穩重、有存在感，對自己有一定要求', relationship: '喜歡有承諾、能共同做決定的關係', challenge: '雙方都強勢時，需要練習輪流主導' },
-  天機: { partner: '聪明機敏、擅長規劃與分析', vibe: '反應快、帶點知性，對新知保持好奇', relationship: '需要有話聊、可以一起思考和調整的伴侶', challenge: '想得多或反覆比較時，關係容易停在觀察期' },
+  天機: { partner: '聰明機敏、擅長規劃與分析', vibe: '反應快、帶點知性，對新知保持好奇', relationship: '需要有話聊、可以一起思考和調整的伴侶', challenge: '想得多或反覆比較時，關係容易停在觀察期' },
   太陽: { partner: '熱情坦率、願意付出與帶領', vibe: '開朗、行動明快，容易成為團體焦點', relationship: '重視坦白、共同目標與彼此成就', challenge: '不要把照顧對方變成單方承擔' },
   武曲: { partner: '務實果斷、重視責任與成果', vibe: '俐落、節制，用行動多於言語表達', relationship: '透過可靠行動和共同經營建立安全感', challenge: '別只談解決方案，也要回應感受' },
   天同: { partner: '溫和體貼、懂得營造舒服氛圍', vibe: '親切、隨和，帶有輕鬆感', relationship: '需要溫暖陪伴與能放鬆做自己的空間', challenge: '為了和諧而逃避問題，反而會累積不滿' },
@@ -136,6 +136,22 @@ const LOVE_QUERIES: { id: LoveQuery; label: string; hint: string }[] = [
   { id: 'timing', label: '出現時機', hint: '年份、訊號與可能場景' },
   { id: 'pattern', label: '愛情運勢', hint: '關係模式與容易踩到的雷' },
   { id: 'action', label: '幸福建議', hint: '依目前關係狀態行動' },
+];
+
+const LEARNING_STEPS = [
+  { number: '01', title: '先核對排盤資料', text: '國曆／農曆、出生日期、出生時辰與性別會影響命盤。本站以台灣民用時間與輸入時辰排盤，尚未換算出生地真太陽時。' },
+  { number: '02', title: '先宮位，後星曜', text: '宮位是題目，星曜是表現方式。先確認要看的生活面向，再讀主星、輔星、亮度與四化，避免只憑一顆星下結論。' },
+  { number: '03', title: '空宮不是沒有', text: '宮位無十四主星時，需借看對宮主星，並和本宮輔曜一起閱讀。本站會在報告中直接標示借星來源。' },
+  { number: '04', title: '再看三方四正', text: '一個宮位要連同對宮及兩個三合宮交叉理解。本版摘要先呈現主宮、對宮與輔助宮，完整三方四正仍屬後續擴充項目。' },
+  { number: '05', title: '本命與運限分開', text: '本命描述長期傾向；大限觀察十年階段；流年用來看某一年哪些議題較活躍。活躍不代表事件必然發生。' },
+  { number: '06', title: '最後才轉成行動', text: '命盤可作為自我觀察線索，不代替雙方溝通、醫療、法律或財務專業。建議要能落實，也要保留現實驗證。' },
+];
+
+const SYSTEM_LAYERS = [
+  { level: 'A', title: '基礎排盤', status: '規則計算', confidence: '高一致性', text: '由開源 iztro 依出生資料計算十二宮、十四主星、輔曜、四化與大限。相同設定應可重現。' },
+  { level: 'B', title: '本命摘要', status: '本站映射', confidence: '可追溯', text: '把宮位、主星、亮度、四化與空宮借星轉成七大面向文字；每張卡片保留星曜依據。' },
+  { level: 'C', title: '正緣年份', status: '自訂指標', confidence: '相對參考', text: '綜合流年夫妻宮、紅鸞天喜、流年四化、貴人曜與夫妻大限計分；不是傳統唯一公式或成功機率。' },
+  { level: 'D', title: '幸福建議', status: '行動設計', confidence: '需現實驗證', text: '依命盤傾向與目前關係狀態產生可執行建議，結果應配合真實互動與個人選擇調整。' },
 ];
 
 const LOVE_STATUS_ADVICE: Record<LoveStatus, { label: string; title: string; steps: string[] }> = {
@@ -277,7 +293,7 @@ export default function Home() {
   return <main>
     <header className="site-header">
       <a className="brand" href="#top" aria-label="紫微命盤首頁"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a>
-      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#love-timing">正緣時機</a><a href="#guide">排盤說明</a></nav>
+      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#love-timing">正緣時機</a><a href="#guide">學前指南</a></nav>
     </header>
 
     <section className="hero love-entry" id="top">
@@ -309,6 +325,7 @@ export default function Home() {
         </div>
         {calendar === 'lunar' && <label className="check"><input type="checkbox" checked={leap} onChange={(e) => setLeap(e.target.checked)}/> 此日期為閏月</label>}
         <div className="privacy-note"><LockKeyhole size={14}/><span>資料只在你的瀏覽器內計算，不會上傳或儲存。</span></div>
+        <p className="calculation-assumption">排盤假設：台灣民用時間、不校正出生地真太陽時；早子與晚子分開處理。</p>
         <button className="primary-button love-submit" type="submit" value="love"><Heart size={17}/> 立即分析正緣 <ArrowRight size={16}/></button>
         <button className="chart-submit" type="submit" value="chart">先查看完整十二宮命盤</button>
         <div className="entry-steps"><span><b>1</b>填寫資料</span><i/><span><b>2</b>完成排盤</span><i/><span><b>3</b>正緣分析</span></div>
@@ -431,7 +448,19 @@ export default function Home() {
       <div className="love-disclaimer"><Info size={17}/><p>「正緣」在這裡代表值得認識與經營的關係機會，不保證特定年份結婚或遇見特定人物。感情仍取決於雙方選擇、溝通與現實條件。</p></div>
     </section>
 
-    <section className="guide" id="guide"><div><span className="eyebrow">快速入門</span><h2>先讀懂一張命盤</h2></div><div className="guide-grid"><article><span>01</span><h3>宮位</h3><p>十二宮代表人生的不同面向，例如命宮、財帛、官祿與夫妻。</p></article><article><span>02</span><h3>星曜</h3><p>十四主星與輔星落入不同宮位，組成命盤的基本個性與傾向。</p></article><article><span>03</span><h3>大限</h3><p>每十年為一個階段。宮位上的歲數區間，是觀察人生節奏的索引。</p></article></div></section>
+    <section className="guide" id="guide">
+      <div className="guide-heading"><span className="eyebrow">紫微斗數・學前指南</span><h2>先理解讀法，再看結果</h2><p>不要從一句吉凶開始。先確認資料與宮位，再看星曜關係、人生階段，最後才把線索轉成可以驗證的行動。</p></div>
+      <div className="guide-grid">{LEARNING_STEPS.map((step) => <article key={step.number}><span>{step.number}</span><h3>{step.title}</h3><p>{step.text}</p></article>)}</div>
+      <div className="reading-flow" aria-label="命盤閱讀順序"><span>出生資料</span><i>→</i><span>十二宮</span><i>→</i><span>主星與輔曜</span><i>→</i><span>四化／三方四正</span><i>→</i><span>大限與流年</span><i>→</i><span>現實驗證</span></div>
+
+      <div className="system-audit">
+        <div className="audit-heading"><span className="eyebrow">SYSTEM STATUS</span><h2>這套系統目前做到哪裡</h2><p>以下分層能避免把「排盤規則」和「產品解讀」誤認為同一件事，也說明為什麼不同網站可能排出同一組星，卻給出不同年份或文案。</p></div>
+        <div className="audit-grid">{SYSTEM_LAYERS.map((layer) => <article key={layer.level}><span className="audit-level">{layer.level}</span><div><small>{layer.status}・{layer.confidence}</small><h3>{layer.title}</h3><p>{layer.text}</p></div></article>)}</div>
+        <div className="audit-next"><div><b>目前可放心比較</b><p>十二宮位置、主星組合、空宮借星、四化與大限區間。</p></div><div><b>仍須標示口徑</b><p>性格文案、正緣輪廓、年份權重與行動建議。</p></div><div><b>下一階段</b><p>加入完整三方四正、流月、派別設定與固定測試案例。</p></div></div>
+      </div>
+
+      <div className="guide-source"><Info size={16}/><p>本區依公開可見的課程介紹與紫微斗數常用閱讀概念重新整理，未複製受限制的課程內文。延伸閱讀：<a href="https://course.taotaoxi.net/posts/91490bd2-cb9c-4f60-833b-867832e7e142" target="_blank" rel="noreferrer">桃桃喜〈紫微斗數｜學前指南〉</a>（可能需要登入）。</p></div>
+    </section>
     <footer><div className="brand"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></div><p>以傳統星學為鏡，照見當下的自己。</p><button type="button" onClick={() => window.scrollTo({top:0,behavior:'smooth'})}><RotateCcw size={14}/> 重新排盤</button></footer>
   </main>;
 }
