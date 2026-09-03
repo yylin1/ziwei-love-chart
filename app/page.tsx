@@ -290,6 +290,9 @@ export default function Home() {
   const careerReport = reports.find((report) => report.id === 'career') ?? reports[0];
   const loveReport = reports.find((report) => report.id === 'love') ?? reports[0];
   const futureLoveYears = modeYears.filter((item) => item.year >= new Date().getFullYear()).slice(0, 3);
+  const soulCore = useMemo(() => resolvePalace(chart, '命宮'), [chart]);
+  const currentYearLove = loveForecast.years.find((item) => item.year === new Date().getFullYear());
+  const nextLoveOpportunity = loveForecast.years.filter((item) => item.year >= new Date().getFullYear()).sort((a, b) => b.score - a.score || a.year - b.year)[0];
   const decisionYearContext = useMemo(() => {
     const currentYear = new Date().getFullYear();
     const horoscope = chart.horoscope(`${currentYear}-07-01`, 6);
@@ -304,7 +307,7 @@ export default function Home() {
     try {
       const next = makeChart(date, hour, gender, calendar, leap);
       const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-      const target = submitter?.value === 'chart' ? '#chart' : '#love-timing';
+      const target = submitter?.value === 'chart' ? '#chart' : '#current-summary';
       setChart(next);
       setReportName(name.trim() || '命盤主人');
       setSelected(next.palaces.find((p) => p.name === '命宮')?.index ?? 0);
@@ -356,8 +359,20 @@ export default function Home() {
       </form>
     </section>
 
+    <section className="current-summary" id="current-summary">
+      <div className="current-summary-head"><div><span className="eyebrow"><Sparkles size={14}/> 排盤完成・先看現在</span><h2>{reportName}的當前狀態總結</h2><p>先用一分鐘掌握本命基調、人生階段與今年感情訊號，再決定要深入哪個章節。</p></div><span className="summary-date">{chart.solarDate}<small>{chart.time}・{chart.gender}命</small></span></div>
+      <div className="current-summary-grid">
+        <article><small>本命核心</small><h3>{soulCore.stars.map((star) => star.name).join('・') || '對宮星系'}</h3><p>{soulCore.borrowedFrom ? `命宮空宮，借看${soulCore.borrowedFrom}。` : '由命宮主星定下基本反應模式。'}{selfReport.strengths}</p></article>
+        <article><small>目前階段</small><h3>{activeDecade ? `${activeDecade.name}大限` : '本命探索期'}</h3><p>{activeDecade ? `虛歲 ${nominalAge}，位於 ${activeDecade.decadal.range[0]}–${activeDecade.decadal.range[1]} 歲階段；目前較常處理${activeDecade.name}相關議題。` : '先以本命傾向與實際生活狀態交叉觀察。'}</p></article>
+        <article><small>{new Date().getFullYear()} 感情訊號</small><h3>{currentYearLove?.level || '沉澱觀察'}</h3><p>{currentYearLove ? `${currentYearLove.score}/10・${currentYearLove.scene}。` : '今年以日常互動與關係品質為主要觀察。'}分數代表相對活躍度，不是成功率。</p></article>
+        <article className="current-advice"><small>現在建議</small><h3>{loveAdvice.title}</h3><p>{loveAdvice.steps[0]}{nextLoveOpportunity && nextLoveOpportunity.year !== new Date().getFullYear() ? ` 下一個較集中的參考年份為 ${nextLoveOpportunity.year} 年。` : ''}</p></article>
+      </div>
+      <div className="summary-shortcuts"><a href="#report">快速選擇七大分析 <ArrowRight size={14}/></a><a href="#love-timing">查看正緣年份 <ArrowRight size={14}/></a><a href="#full-report">閱讀完整報告 <ArrowRight size={14}/></a></div>
+    </section>
+
     <section className="chart-section" id="chart">
       <div className="section-title"><span className="eyebrow">你的本命星盤</span><h2>十二宮命盤</h2><p aria-live="polite">{message}</p></div>
+      <div className="mobile-chart-summary"><span className="seal">命</span><div><small>命盤基本資料</small><h3>{chart.gender}命・{chart.fiveElementsClass}</h3><p>{chart.solarDate}・{chart.time}<br/>命主 {chart.soul}・身主 {chart.body}</p></div></div>
       <div className="chart-shell">
         <div className="chart-grid">
           {GRID_ORDER.map((index,cell) => {
@@ -385,6 +400,11 @@ export default function Home() {
         <div><span className="eyebrow">PERSONAL REPORT</span><h2>你的七大面向分析</h2><p>綜合本命宮位、主星、亮度、四化與對宮關係，自動生成專屬閱讀摘要。</p></div>
         <button className="print-button" type="button" onClick={() => window.print()}><Printer size={16}/> 列印／另存 PDF</button>
       </div>
+
+      <nav className="report-jump" aria-label="快速選擇七大面向">
+        <div><span>快速前往</span><b>選一個現在最想看的面向</b></div>
+        {reports.map((report, index) => { const Icon = report.icon; return <a href={`#report-${report.id}`} key={report.id}><span>0{index + 1}</span><Icon size={17}/><b>{report.title}</b><small>{report.primary}</small></a>; })}
+      </nav>
 
       <div className="report-overview">
         <div className="report-seal">析</div>
