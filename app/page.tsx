@@ -321,7 +321,7 @@ export default function Home() {
   return <main>
     <header className="site-header">
       <a className="brand" href="#top" aria-label="紫微命盤首頁"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a>
-      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#decision">命運導航</a><a href="#love-timing">正緣時機</a><a href="#full-report">完整報告</a><a href="#guide">學前指南</a></nav>
+      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#decision">命運導航</a><a href="#love-timing">正緣時機</a><a href="#full-report">完整報告</a><a href="#guide">學前指南</a><a href="./consult/">AI 問答</a></nav>
     </header>
 
     <section className="hero love-entry" id="top">
@@ -376,7 +376,7 @@ export default function Home() {
         <article><small>{new Date().getFullYear()} 感情訊號</small><h3>{currentYearLove?.level || '沉澱觀察'}</h3><p>{currentYearLove ? `${currentYearLove.score}/10・${currentYearLove.scene}。` : '今年以日常互動與關係品質為主要觀察。'}分數代表相對活躍度，不是成功率。</p></article>
         <article className="current-advice"><small>現在建議</small><h3>{loveAdvice.title}</h3><p>{loveAdvice.steps[0]}{nextLoveOpportunity && nextLoveOpportunity.year !== new Date().getFullYear() ? ` 下一個較集中的參考年份為 ${nextLoveOpportunity.year} 年。` : ''}</p></article>
       </div>
-      <div className="summary-shortcuts"><a href="#report">快速選擇七大分析 <ArrowRight size={14}/></a><a href="#love-timing">查看正緣年份 <ArrowRight size={14}/></a><a href="#full-report">閱讀完整報告 <ArrowRight size={14}/></a></div>
+      <div className="summary-shortcuts"><a href="#report">快速選擇七大分析 <ArrowRight size={14}/></a><a href="#love-timing">查看正緣年份 <ArrowRight size={14}/></a><a href="#full-report">閱讀完整報告 <ArrowRight size={14}/></a><a href="./consult/">開啟命盤 AI 問答 <ArrowRight size={14}/></a></div>
     </section>
 
     <section className="chart-section" id="chart">
