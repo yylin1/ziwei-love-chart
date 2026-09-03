@@ -5,7 +5,7 @@ import type { IFunctionalAstrolabe } from 'iztro/lib/astro/FunctionalAstrolabe';
 import type { IFunctionalHoroscope } from 'iztro/lib/astro/FunctionalHoroscope';
 import type { PalaceName } from 'iztro/lib/i18n';
 import { ArrowLeft, ArrowUp, Bot, CalendarDays, ChevronDown, Compass, LockKeyhole, MessageCircleQuestion, RotateCcw, Send, Sparkles } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, KeyboardEvent, useMemo, useRef, useState } from 'react';
 
 const HOURS = ['早子時 00:00–00:59','丑時 01:00–02:59','寅時 03:00–04:59','卯時 05:00–06:59','辰時 07:00–08:59','巳時 09:00–10:59','午時 11:00–12:59','未時 13:00–14:59','申時 15:00–16:59','酉時 17:00–18:59','戌時 19:00–20:59','亥時 21:00–22:59','晚子時 23:00–23:59'];
 const PALACES: PalaceName[] = ['命宮','兄弟','夫妻','子女','財帛','疾厄','遷移','僕役','官祿','田宅','福德','父母'];
@@ -154,6 +154,7 @@ export default function ConsultPage() {
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>('idle');
   const [tokenFeedback, setTokenFeedback] = useState('');
   const [isAsking, setIsAsking] = useState(false);
+  const lastEnterAt = useRef(0);
   const [messages, setMessages] = useState<Message[]>([{role:'assistant',text:'命盤已準備好。你可以從下方題目開始，或直接問一個和自己目前處境有關的問題。我會說明參考宮位與星曜，不把解讀說成必然結果。'}]);
   const overview = useMemo(() => (['命宮','官祿','夫妻','福德'] as PalaceName[]).map((name) => palaceContext(chart, name)), [chart]);
   const horoscope = useMemo(() => chart.horoscope(contextDate, contextHour), [chart, contextDate, contextHour]);
@@ -261,6 +262,17 @@ export default function ConsultPage() {
     requestAnimationFrame(() => document.querySelector('.chat-log-end')?.scrollIntoView({behavior:'smooth',block:'end'}));
   }
 
+  function handleQuestionKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key !== 'Enter' || event.shiftKey) { lastEnterAt.current = 0; return; }
+    const now = Date.now();
+    const isDoubleEnter = now - lastEnterAt.current <= 800;
+    lastEnterAt.current = isDoubleEnter ? 0 : now;
+    if (!isDoubleEnter || tokenStatus !== 'ready' || !question.trim() || isAsking) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
   return <main className="consult-page">
     <header className="consult-header"><a href="../" className="brand"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a><a href="../"><ArrowLeft size={15}/> 返回完整命盤</a></header>
     <section className="consult-title"><span className="eyebrow"><Sparkles size={14}/> NVIDIA KIMI K3・命盤問答</span><h1>問你的命盤，<em>也看見答案依據。</em></h1><p>{tokenStatus === 'ready' ? 'NVIDIA AI 連線已驗證；提問時會直接傳送完整命盤、問盤時間與問題。' : '使用自己的 NVIDIA token 啟用 AI；驗證成功後才能提問，重新整理即清除。'}</p></section>
@@ -295,7 +307,7 @@ export default function ConsultPage() {
         <div className={`nvidia-token-bar ${tokenStatus === 'ready' ? 'is-ready' : ''}`}>{tokenStatus === 'ready' ? <><span><i/> NVIDIA AI 已驗證・Kimi K3</span><button type="button" onClick={() => {setApiToken('');setTokenDraft('');setTokenStatus('idle');setTokenFeedback('');}}>清除 token</button></> : <><label htmlFor="nvidia-token"><LockKeyhole size={13}/><span><b>輸入自己的 NVIDIA token</b><small>只存於目前分頁，不會寫入 GitHub</small></span></label><div><input id="nvidia-token" type="password" value={tokenDraft} onChange={(event) => {setTokenDraft(event.target.value);setTokenStatus('idle');setTokenFeedback('');}} placeholder="nvapi-… 或 sk-…" autoComplete="off" spellCheck={false}/><button type="button" disabled={!tokenDraft.trim() || tokenStatus === 'checking'} onClick={verifyToken}>{tokenStatus === 'checking' ? '驗證中…' : '驗證並啟用'}</button></div>{tokenFeedback && <p className={`token-feedback ${tokenStatus}`} role="status">{tokenFeedback}</p>}</>}</div>
         <div className="chat-suggestions">{SUGGESTIONS.map((item) => <button type="button" key={item} onClick={() => apiToken ? ask(item) : setQuestion(item)}>{item}<ArrowUp size={12}/></button>)}</div>
         <div className="chat-log" aria-live="polite">{messages.map((message,index) => <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Bot size={14}/> : '你'}</span><div><p>{message.text}</p>{message.basis && <div className="answer-basis">{message.basis.map((item) => <small key={item}>{item}</small>)}</div>}</div></div>)}{isAsking && <div className="chat-loading"><Bot size={14}/><span>正在整理命盤脈絡並等待 AI 回覆…</span></div>}<i className="chat-log-end"/></div>
-        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> {tokenStatus === 'ready' ? '命盤會直接送往 NVIDIA 分析' : '請先通過 NVIDIA token 連線驗證'}</span><button type="submit" disabled={tokenStatus !== 'ready' || !question.trim() || isAsking}><Send size={14}/> {isAsking ? '分析中' : '提問'}</button></div></form>
+        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} placeholder="例如：感情中我容易忽略什麼？" rows={3} enterKeyHint="enter"/><div><span><MessageCircleQuestion size={13}/> {tokenStatus === 'ready' ? '連按兩次 Enter 送出・Shift+Enter 換行' : '請先通過 NVIDIA token 連線驗證'}</span><button type="submit" disabled={tokenStatus !== 'ready' || !question.trim() || isAsking}><Send size={14}/> {isAsking ? '分析中' : '提問'}</button></div></form>
       </aside>
     </section>
   </main>;
