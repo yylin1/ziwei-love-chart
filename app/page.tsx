@@ -171,6 +171,31 @@ const LOVE_STATUS_ADVICE: Record<LoveStatus, { label: string; title: string; ste
   partnered: { label: '穩定交往中', title: '把感情運用在經營，而非等待', steps: ['每週保留一次不處理工作與家務的專屬相處時間。','用具體請求代替批評，例如說出希望的頻率、方式和期限。','在高機會年份共同規劃旅行、承諾或生活階段，讓關係向前。'] },
 };
 
+const LOVE_STATUS_RESULT: Record<LoveStatus, {
+  badge: string; formHint: string; submit: string; introTitle: string; introText: string;
+  quote: string; highlight: string; highlightAction: string; resultsTitle: string;
+  timingTitle: string; sceneTitle: string; sceneNote: string; personTitle: string; personLead: string;
+}> = {
+  single: {
+    badge: '目前單身・相遇模式', formHint: '分析新緣分的相遇時機、生活場景與辨認方向。', submit: '看我的相遇時機',
+    introTitle: '你需要的不是等待，而是讓對的人有機會遇見你。', introText: '目前單身時，報告會把流年訊號解讀成「拓展生活圈與認識新對象」的窗口，而不是保證某年必然出現特定的人。',
+    quote: '把年份當成行動提醒：在訊號較活躍時增加可重複見面的場合，再用真實互動確認穩定度、價值觀與界線。', highlight: '近期較適合主動拓展的窗口', highlightAction: '主動進入能重複互動的生活圈，先認識，再觀察。',
+    resultsTitle: '遇見、辨認，再決定是否開始', timingTitle: '什麼時候容易認識新對象？', sceneTitle: '到哪裡增加相遇機會？', sceneNote: '優先選擇能重複見面、自然合作的場域，比一次性的陌生社交更容易看清彼此。', personTitle: '怎麼辨認值得認識的人？', personLead: '命盤描述的是你容易欣賞的特質；是否適合，仍要回到對方持續的行動。',
+  },
+  developing: {
+    badge: '曖昧／認識中・確認模式', formHint: '分析關係確認、轉正與觀察彼此一致性的窗口。', submit: '看關係確認時機',
+    introTitle: '你現在需要的不是更多猜測，而是更清楚的互動證據。', introText: '已有認識中的對象時，同一組流年不再解讀成「另一個人何時出現」，而是用來安排深入互動、確認期待與決定是否繼續的窗口。',
+    quote: '曖昧期最重要的不是替對方找理由，而是觀察話語與行動是否一致。一次坦白對話，加上後續行動，通常比反覆猜訊息更有答案。', highlight: '近期較適合把關係說清楚的窗口', highlightAction: '安排一次關係對話，確認期待、界線與下一步。',
+    resultsTitle: '看清、確認，再選擇是否前進', timingTitle: '什麼時候適合確認關係？', sceneTitle: '哪些互動最能看清關係？', sceneNote: '把命盤場景當成觀察題目：一起做事、遇到變化或談到期待時，最容易看見彼此是否合拍。', personTitle: '目前這個人值得繼續嗎？', personLead: '不要用命盤替對方定型；請用可靠度、溝通與界線三項現實證據判斷。',
+  },
+  partnered: {
+    badge: '穩定交往中・經營模式', formHint: '分析關係推進、共同規劃與磨合課題較活躍的窗口。', submit: '看關係推進時機',
+    introTitle: '你現在要看的不是誰會出現，而是兩個人如何走得更遠。', introText: '已有穩定關係時，年份不代表新的「真命天子」出現，而是承諾、生活整合與磨合議題較活躍的窗口。',
+    quote: '好的關係不是沒有差異，而是差異出現時仍能合作。把運勢窗口用在對話與共同決策，比等待一切自然變好更有幫助。', highlight: '近期較適合共同規劃的窗口', highlightAction: '討論承諾、居住、財務或下一個生活階段。',
+    resultsTitle: '理解、磨合，再一起向前推進', timingTitle: '什麼時候適合推進關係？', sceneTitle: '哪些生活場景需要一起面對？', sceneNote: '這些是適合共同協調的生活題目，不代表事件一定發生，也不表示需要等待特定年份才行動。', personTitle: '怎麼讓現在的關係更穩？', personLead: '命盤可提示你的關係需要，但不能替你判定伴侶對錯；重點是兩人能否協調與修復。',
+  },
+};
+
 function buildLoveForecast(chart: IFunctionalAstrolabe) {
   const currentYear = new Date().getFullYear();
   const birthYear = Number(chart.solarDate.split('-')[0]);
@@ -588,6 +613,7 @@ export default function LoveHome() {
   const [calendar, setCalendar] = useState<CalendarType>('solar');
   const [leap, setLeap] = useState(false);
   const [loveStatus, setLoveStatus] = useState<LoveStatus>('single');
+  const [reportStatus, setReportStatus] = useState<LoveStatus>('single');
   const [chart, setChart] = useState(() => makeChart('1990-08-17', 6, '男', 'solar', false));
   const [hasResult, setHasResult] = useState(false);
   const [error, setError] = useState('');
@@ -599,13 +625,31 @@ export default function LoveHome() {
   const timingWindows = visibleWindows.length ? visibleWindows : fallbackWindows;
   const bestWindow = [...forecast.years].filter((item) => item.year >= currentYear).sort((a,b) => b.score - a.score || a.year - b.year)[0];
   const meetingScenes = [...new Set(timingWindows.map((item) => item.scene))].slice(0,3);
-  const advice = LOVE_STATUS_ADVICE[loveStatus];
+  const formMode = LOVE_STATUS_RESULT[loveStatus];
+  const reportMode = LOVE_STATUS_RESULT[reportStatus];
+  const advice = LOVE_STATUS_ADVICE[reportStatus];
   const displayName = name.trim() || '你';
+  const timingLevel = (score: number) => reportStatus === 'single'
+    ? (score >= 8 ? '緣分聚焦' : '適合拓展')
+    : reportStatus === 'developing'
+      ? (score >= 8 ? '適合確認' : '增加互動')
+      : (score >= 8 ? '適合推進' : '適合協調');
+  const sceneInsights = reportStatus === 'single'
+    ? meetingScenes
+    : reportStatus === 'developing'
+      ? ['一起完成一件小事：觀察可靠度與投入是否對等','朋友或團體場合：看彼此能否自然融入生活圈','談期待與界線：確認想要的關係是否一致']
+      : ['共同規劃：旅行、居住或一項兩人目標','壓力情境：忙碌或意見不同時如何協調','日常分工：時間、金錢與責任能否談清楚'];
+  const personChecks = reportStatus === 'single'
+    ? ['看對方是否穩定回應，而不只看一開始的熱情。','觀察遇到差異時，能不能好好說話。',forecast.relationshipChallenges[0] || '確認彼此對界線與未來的理解。']
+    : reportStatus === 'developing'
+      ? ['主動程度與時間投入是否大致對等。','對方能否清楚回應關係期待，而非持續迴避。','出現誤會後，是否願意溝通、修復並尊重界線。']
+      : ['固定談近況與需求，不把不滿累積成猜測。','重要決定能共同討論，責任與付出不由一人承擔。','衝突後能回到問題本身，修復關係而非反覆翻舊帳。'];
 
   function submitLove(event: FormEvent) {
     event.preventDefault();
     try {
       setChart(makeChart(date, hour, gender, calendar, leap));
+      setReportStatus(loveStatus);
       setHasResult(true);
       setError('');
       requestAnimationFrame(() => document.querySelector('#love-results')?.scrollIntoView({behavior:'smooth',block:'start'}));
@@ -633,26 +677,26 @@ export default function LoveHome() {
         <label><span>出生日期</span><div className="control"><CalendarDays size={17}/><input type="date" value={date} onChange={(event) => setDate(event.target.value)} min="1900-01-01" max="2100-12-31" required/></div></label>
         <div className="love-form-row"><label><span>出生時辰</span><div className="control"><select value={hour} onChange={(event) => setHour(Number(event.target.value))}>{HOURS.map((label,index) => <option value={index} key={label}>{label}</option>)}</select><ChevronDown size={16}/></div></label><fieldset><legend>性別</legend><div className="gender-choice"><button type="button" className={gender === '男' ? 'selected' : ''} onClick={() => setGender('男')}>男</button><button type="button" className={gender === '女' ? 'selected' : ''} onClick={() => setGender('女')}>女</button></div></fieldset></div>
         {calendar === 'lunar' && <label className="check"><input type="checkbox" checked={leap} onChange={(event) => setLeap(event.target.checked)}/> 此日期為閏月</label>}
-        <div className="love-status-field"><span>目前感情狀態</span><div>{(Object.keys(LOVE_STATUS_ADVICE) as LoveStatus[]).map((status) => <button type="button" className={loveStatus === status ? 'selected' : ''} key={status} onClick={() => setLoveStatus(status)}>{LOVE_STATUS_ADVICE[status].label}</button>)}</div></div>
+        <div className="love-status-field"><span>目前感情狀態</span><div>{(Object.keys(LOVE_STATUS_ADVICE) as LoveStatus[]).map((status) => <button type="button" className={loveStatus === status ? 'selected' : ''} key={status} onClick={() => setLoveStatus(status)}>{LOVE_STATUS_ADVICE[status].label}</button>)}</div><p className="love-status-explain">{formMode.formHint}</p></div>
         {error && <p className="love-form-error">{error}</p>}
-        <button className="love-main-cta" type="submit"><Heart size={17} fill="currentColor"/> 看我的正緣時機 <ArrowRight size={17}/></button>
+        <button className="love-main-cta" type="submit"><Heart size={17} fill="currentColor"/> {formMode.submit} <ArrowRight size={17}/></button>
         <p className="love-local-note"><LockKeyhole size={13}/> 資料不會上傳、儲存或出現在網址中</p>
       </form>
     </section>
 
     <section className={`love-results-home ${hasResult ? 'is-visible' : ''}`} id="love-results" aria-hidden={!hasResult}>
       <div className="result-intro">
-        <span className="result-number">你的感情報告</span><h2>{displayName}，你真正要找的，<br/>不是一個完美的人。</h2>
-        <p>{forecast.partnerProfile}</p><p>{forecast.relationshipNeed}</p>
-        <blockquote>對你來說，適合的關係不是靠猜測維持，而是兩個人能在心動以外，持續回應、說清需要，也願意一起面對差異。年份提供的是「更適合行動的窗口」，真正決定關係品質的，仍是你如何選擇與經營。</blockquote>
-        {bestWindow && <div className="intro-highlight"><span>最值得留意的近期窗口</span><b>{bestWindow.year}</b><p>{bestWindow.scene}，先觀察穩定行動，再決定是否投入。</p></div>}
+        <span className="result-number">你的感情報告</span><span className="result-state-badge">{reportMode.badge}</span><h2>{displayName}，{reportMode.introTitle}</h2>
+        <p>{reportMode.introText}</p>{reportStatus === 'single' && <p>{forecast.partnerProfile}</p>}<p>{forecast.relationshipNeed}</p>
+        <blockquote>{reportMode.quote}</blockquote>
+        {bestWindow && <div className="intro-highlight"><span>{reportMode.highlight}</span><b>{bestWindow.year}</b><p>{reportMode.highlightAction}</p></div>}
       </div>
 
-      <div className="result-four-heading"><small>FOUR RESULTS</small><h2>你最想知道的四件事</h2><p>先看結論，再依需要展開細節。</p></div>
+      <div className="result-four-heading"><small>FOUR RESULTS</small><h2>{reportMode.resultsTitle}</h2><p>以下內容已依「{LOVE_STATUS_ADVICE[reportStatus].label}」重新解讀。</p></div>
       <div className="result-four-grid">
-        <article className="result-block timing-result"><span className="result-icon"><CalendarDays size={20}/></span><small>01・WHEN</small><h3>什麼時候比較容易遇見？</h3>{timingWindows.length > 0 && <div className="horizon-list">{timingWindows.map((item) => <div key={item.year}><span>{item.year === currentYear ? '現在' : `+${item.year-currentYear} 年`}</span><b>{item.year}</b><strong>{item.level}</strong><p>{item.signals.join('・') || '生活圈互動增加'}</p></div>)}</div>}<p className="result-note">只呈現訊號較集中的年份，分數代表相對活躍度，不是遇見或結婚機率。</p></article>
-        <article className="result-block"><span className="result-icon"><MapPin size={20}/></span><small>02・WHERE</small><h3>什麼場合容易發生？</h3><div className="scene-list">{meetingScenes.map((scene,index) => <div key={scene}><span>0{index+1}</span><p>{scene}</p></div>)}</div><p className="result-note">適合選擇能重複見面、自然合作的場域，比一次性的陌生社交更容易看清彼此。</p></article>
-        <article className="result-block"><span className="result-icon"><Users size={20}/></span><small>03・WHO</small><h3>怎麼辨認適合的人？</h3><p className="result-lead">{forecast.partnerTraits.slice(0,2).join('，') || '重視承諾、願意溝通，也能尊重你的生活節奏。'}</p><ul><li>看對方是否穩定回應，而不只看熱情。</li><li>觀察遇到差異時，能不能好好說話。</li><li>{forecast.relationshipChallenges[0] || '確認彼此對界線與未來的理解。'}</li></ul></article>
+        <article className="result-block timing-result"><span className="result-icon"><CalendarDays size={20}/></span><small>01・WHEN</small><h3>{reportMode.timingTitle}</h3>{timingWindows.length > 0 && <div className="horizon-list">{timingWindows.map((item) => <div key={item.year}><span>{item.year === currentYear ? '現在' : `+${item.year-currentYear} 年`}</span><b>{item.year}</b><strong>{timingLevel(item.score)}</strong><p>{item.signals.join('・') || '關係互動增加'}</p></div>)}</div>}<p className="result-note">只呈現訊號較集中的年份；它代表適合採取相應行動的相對窗口，不是事件或結果的機率。</p></article>
+        <article className="result-block"><span className="result-icon"><MapPin size={20}/></span><small>02・WHERE</small><h3>{reportMode.sceneTitle}</h3><div className="scene-list">{sceneInsights.map((scene,index) => <div key={scene}><span>0{index+1}</span><p>{scene}</p></div>)}</div><p className="result-note">{reportMode.sceneNote}</p></article>
+        <article className="result-block"><span className="result-icon"><Users size={20}/></span><small>03・WHO</small><h3>{reportMode.personTitle}</h3><p className="result-lead">{reportStatus === 'single' ? (forecast.partnerTraits.slice(0,2).join('，') || reportMode.personLead) : reportMode.personLead}</p><ul>{personChecks.map((item) => <li key={item}>{item}</li>)}</ul></article>
         <article className="result-block action-result"><span className="result-icon"><Compass size={20}/></span><small>04・HOW</small><h3>現在可以怎麼做？</h3><p className="result-lead">{advice.title}</p><ol>{advice.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol></article>
       </div>
 
