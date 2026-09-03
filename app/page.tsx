@@ -286,6 +286,10 @@ export default function Home() {
   }, [loveForecast, modeDefinition]);
   const activeLoveYear = modeYears.find((item) => item.year === selectedLoveYear) ?? modeYears.find((item) => item.year >= new Date().getFullYear()) ?? modeYears[0];
   const activeDecision = reports.find((report) => report.id === decisionId) ?? reports[0];
+  const selfReport = reports.find((report) => report.id === 'self') ?? reports[0];
+  const careerReport = reports.find((report) => report.id === 'career') ?? reports[0];
+  const loveReport = reports.find((report) => report.id === 'love') ?? reports[0];
+  const futureLoveYears = modeYears.filter((item) => item.year >= new Date().getFullYear()).slice(0, 3);
   const decisionYearContext = useMemo(() => {
     const currentYear = new Date().getFullYear();
     const horoscope = chart.horoscope(`${currentYear}-07-01`, 6);
@@ -313,7 +317,7 @@ export default function Home() {
   return <main>
     <header className="site-header">
       <a className="brand" href="#top" aria-label="紫微命盤首頁"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a>
-      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#decision">命運導航</a><a href="#love-timing">正緣時機</a><a href="#guide">學前指南</a></nav>
+      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#decision">命運導航</a><a href="#love-timing">正緣時機</a><a href="#full-report">完整報告</a><a href="#guide">學前指南</a></nav>
     </header>
 
     <section className="hero love-entry" id="top">
@@ -486,6 +490,39 @@ export default function Home() {
       </div>
 
       <div className="love-disclaimer"><Info size={17}/><p>「正緣」在這裡代表值得認識與經營的關係機會，不保證特定年份結婚或遇見特定人物。感情仍取決於雙方選擇、溝通與現實條件。</p></div>
+    </section>
+
+    <section className="chapter-report" id="full-report">
+      <header className="chapter-cover">
+        <div><span className="eyebrow">PERSONAL READING・五章完整報告</span><h2>{reportName}的命盤與感情導航</h2><p>將十二宮、七大面向與正緣時機重新編排成一份可連續閱讀的報告。所有內容即時計算，不建立帳號、不產生訂單編號，也不把出生資料寫入網址。</p></div>
+        <button className="print-button" type="button" onClick={() => window.print()}><Printer size={16}/> 列印／另存 PDF</button>
+      </header>
+
+      <nav className="chapter-index" aria-label="完整報告章節">
+        <a href="#chapter-guide"><span>01</span>真命指南</a><a href="#chapter-personality"><span>02</span>個性相處</a><a href="#chapter-timing"><span>03</span>愛情運勢</a><a href="#chapter-action"><span>04</span>幸福建議</a><a href="#chapter-summary"><span>05</span>命盤總結</a>
+      </nav>
+
+      <article className="report-chapter" id="chapter-guide">
+        <div className="chapter-number">01</div><div className="chapter-copy"><small>MY RELATIONSHIP GUIDE</small><h3>真命指南</h3><p className="chapter-lead">先理解你會被什麼互動方式吸引，再用真實行為辨認適合的人。</p><p>{loveForecast.partnerProfile}</p><div className="chapter-facts"><div><b>容易欣賞的特質</b><p>{loveForecast.partnerTraits.join('；') || '穩定、尊重並願意共同成長。'}</p></div><div><b>外在給人的氣質</b><p>{loveForecast.partnerVibe.join('；') || '氣質比固定外貌更值得觀察。'}</p></div><div><b>解讀依據</b><p>{loveReport.basis}</p></div></div><div className="chapter-boundary"><Info size={15}/>命盤不能可靠推出姓氏、身高、手指長度或指定明星；本報告不產生這類無法驗證的個資式推測。</div></div>
+      </article>
+
+      <article className="report-chapter" id="chapter-personality">
+        <div className="chapter-number">02</div><div className="chapter-copy"><small>PERSONALITY & COMPATIBILITY</small><h3>個性與相處方式</h3><p className="chapter-lead">適合不只是一組特質，而是兩個人能否在日常中形成安全、清楚又有彈性的互動。</p><p>{loveForecast.relationshipNeed}</p><div className="chapter-facts"><div><b>適合的關係模式</b><p>{loveForecast.relationshipStyles.join('；') || '清楚溝通並尊重彼此空間。'}</p></div><div><b>容易卡住的地方</b><p>{loveForecast.relationshipChallenges.join('；') || '心動之後仍需要確認雙方關係意願。'}</p></div><div><b>溝通練習</b><p>{DECISION_PROMPTS.love.question}</p></div></div></div>
+      </article>
+
+      <article className="report-chapter" id="chapter-timing">
+        <div className="chapter-number">03</div><div className="chapter-copy"><small>LOVE TIMING</small><h3>愛情運勢與關係節奏</h3><p className="chapter-lead">年份代表關係議題相對活躍，不是保證某人出現，也不是結婚成功率。</p><div className="chapter-year-highlight"><span>{activeLoveYear?.year || new Date().getFullYear()}</span><div><b>{activeLoveYear?.level || '觀察當下'}</b><p>{activeLoveYear ? `${activeLoveYear.scene}；依據為${activeLoveYear.signals.join('、') || '夫妻宮流年訊號'}。` : '先從當下的互動品質與生活場景開始觀察。'}</p></div></div><div className="chapter-facts"><div><b>接下來可留意</b><p>{futureLoveYears.length ? futureLoveYears.map((item) => `${item.year} 年（${item.level}）`).join('、') : '目前模式沒有篩出未來年份，可切換寬鬆參考重新查看。'}</p></div><div><b>婚前觀察</b><p>確認關係意願、守信程度、界線與衝突修復能力，不把高頻聊天直接視為承諾。</p></div><div><b>進入關係後</b><p>維持固定溝通、共同規劃與各自空間，遇到差異時處理問題而非推測對方。</p></div></div></div>
+      </article>
+
+      <article className="report-chapter" id="chapter-action">
+        <div className="chapter-number">04</div><div className="chapter-copy"><small>HAPPINESS PRACTICE</small><h3>{loveAdvice.title}</h3><p className="chapter-lead">幸福建議會跟著你在上方選擇的「{loveAdvice.label}」狀態更新。</p><ol className="chapter-actions">{loveAdvice.steps.map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, '0')}</span><p>{step}</p></li>)}</ol><div className="chapter-practice"><b>本週練習</b><p>{DECISION_PROMPTS.love.experiment}</p></div></div>
+      </article>
+
+      <article className="report-chapter summary-chapter" id="chapter-summary">
+        <div className="chapter-number">05</div><div className="chapter-copy"><small>YOUR CHART SUMMARY</small><h3>總結命盤與現在建議</h3><p className="chapter-lead">你的命盤不是一份固定答案，而是一張顯示慣性、資源與當下節奏的地圖。</p><div className="summary-statement"><span className="seal">命</span><p>{selfReport.basis}你可優先發揮「{selfReport.strengths}」；在關係上，{loveForecast.relationshipNeed}</p></div><div className="summary-now"><div><small>目前人生階段</small><b>{activeDecade ? `${activeDecade.name}大限・${activeDecade.decadal.range[0]}–${activeDecade.decadal.range[1]} 歲` : '本命探索階段'}</b><p>{activeDecade ? `這十年的主題偏向${activeDecade.name}所代表的生活領域，重大決定仍要回到現況與資源評估。` : '先從可控制的小決定累積驗證。'}</p></div><div><small>現在的核心提醒</small><b>認識自己，也為現實留位置</b><p>{selfReport.watch}</p></div></div><div className="summary-actions"><h4>現在先做三件事</h4><ol><li><span>1</span><p>{selfReport.action}</p></li><li><span>2</span><p>{careerReport.action}</p></li><li><span>3</span><p>{loveAdvice.steps[0]}</p></li></ol></div><div className="summary-closing"><Sparkles size={18}/><p>把命盤當作提問工具：看見傾向、辨認時機、做出選擇，然後用生活結果持續修正。</p></div></div>
+      </article>
+
+      <div className="privacy-commitment"><LockKeyhole size={19}/><div><b>隱私承諾</b><p>姓名與出生資料只存在目前瀏覽器記憶體，重新整理即清除；本站沒有資料庫、登入、分析追蹤或訂單系統。請勿在公開裝置保留匯出的 PDF。</p></div></div>
     </section>
 
     <section className="guide" id="guide">
