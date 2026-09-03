@@ -121,6 +121,21 @@ const MEETING_SCENES: Record<string, string> = {
   父母: '透過長輩、主管、正式機構或可信任的介紹',
 };
 
+const MEETING_DIRECTIONS: Record<string, { title: string; where: string; action: string }> = {
+  命宮: { title: '主動曝光型', where: '固定興趣班、個人作品發表、運動課或同好社群', action: '選一個至少持續四週的活動，主動和同一批人建立第二次互動。' },
+  兄弟: { title: '熟人延伸型', where: '同學聚會、朋友的小型餐敘、校友或同業群組', action: '明確告訴兩位熟人你願意認識新朋友，接受有背景資訊的小型介紹。' },
+  夫妻: { title: '目的明確型', where: '朋友安排的一對一認識、交友平台或以穩定關係為前提的約會', action: '提早談交往期待與生活節奏，避免只靠曖昧感維持互動。' },
+  子女: { title: '興趣體驗型', where: '展演、手作課、桌遊、戶外活動或可共同創作的聚會', action: '不要只參加單次活動；選擇有續班或固定社群、能再次碰面的形式。' },
+  財帛: { title: '務實合作型', where: '理財或產業課程、商務交流、接案合作與專業服務場合', action: '從交換資源或共同解題開始，觀察對方是否守時、守信並尊重成本。' },
+  疾厄: { title: '日常照顧型', where: '固定運動課、跑團、健康管理或志工照顧活動', action: '以規律出席建立熟悉感，觀察對方在疲累或壓力下是否仍尊重他人。' },
+  遷移: { title: '跨圈移動型', where: '旅行團、跨城市活動、國際交流或有共同主題的線上社群', action: '刻意進入原生活圈以外的固定社群，活動後主動延續一次一對一交流。' },
+  僕役: { title: '朋友協作型', where: '朋友揪團、志工組織、社團幹部或需要分工的共同專案', action: '選擇會一起完成任務的活動，從合作態度判斷可靠度，不只看社交魅力。' },
+  官祿: { title: '專業連結型', where: '產業課程、證照讀書會、跨部門專案或公開分享後的交流', action: '參加有分組或後續社群的專業活動，主動約一次交換經驗，而非只遞名片。' },
+  田宅: { title: '生活圈連結型', where: '社區課程、朋友家聚、搬家佈置或家人信任的介紹', action: '接受小型、可安心交談的聚會，從生活習慣與待人方式觀察適配度。' },
+  福德: { title: '內在興趣型', where: '讀書會、藝文展演、冥想身心課或長期興趣社群', action: '選擇真正想投入的主題，先建立有內容的對話，再判斷情感吸引。' },
+  父母: { title: '可信介紹型', where: '主管或長輩引介、正式機構、專業協會與有共同背景的場合', action: '接受介紹仍保留自己的判斷，用三次互動確認價值觀與界線。' },
+};
+
 type LoveStatus = 'single' | 'developing' | 'partnered';
 type ForecastMode = 'balanced' | 'strict' | 'broad';
 type LoveQuery = 'guide' | 'personality' | 'timing' | 'pattern' | 'action';
@@ -624,7 +639,6 @@ export default function LoveHome() {
   const fallbackWindows = forecast.topYears.filter((item) => item.year >= currentYear && item.score >= 6).slice(0,3);
   const timingWindows = visibleWindows.length ? visibleWindows : fallbackWindows;
   const bestWindow = [...forecast.years].filter((item) => item.year >= currentYear).sort((a,b) => b.score - a.score || a.year - b.year)[0];
-  const meetingScenes = [...new Set(timingWindows.map((item) => item.scene))].slice(0,3);
   const formMode = LOVE_STATUS_RESULT[loveStatus];
   const reportMode = LOVE_STATUS_RESULT[reportStatus];
   const advice = LOVE_STATUS_ADVICE[reportStatus];
@@ -634,11 +648,26 @@ export default function LoveHome() {
     : reportStatus === 'developing'
       ? (score >= 8 ? '適合確認' : '增加互動')
       : (score >= 8 ? '適合推進' : '適合協調');
+  const rankedMeetingDirections = [...timingWindows]
+    .sort((a,b) => b.score - a.score || a.year - b.year)
+    .filter((item,index,items) => items.findIndex((candidate) => candidate.palace === item.palace) === index)
+    .slice(0,2)
+    .map((item) => ({
+      key: `${item.palace}-${item.year}`,
+      ...(MEETING_DIRECTIONS[item.palace] || { title: '自然互動型', where: item.scene, action: '選擇能再次見面的場合，從持續互動確認彼此。' }),
+      basis: `${item.year} 流年夫妻宮落入本命${item.palace}${item.signals.length ? `；${item.signals.join('、')}` : ''}`,
+    }));
   const sceneInsights = reportStatus === 'single'
-    ? meetingScenes
+    ? rankedMeetingDirections
     : reportStatus === 'developing'
-      ? ['一起完成一件小事：觀察可靠度與投入是否對等','朋友或團體場合：看彼此能否自然融入生活圈','談期待與界線：確認想要的關係是否一致']
-      : ['共同規劃：旅行、居住或一項兩人目標','壓力情境：忙碌或意見不同時如何協調','日常分工：時間、金錢與責任能否談清楚'];
+      ? [
+          { key: 'developing-action', title: '共同任務', where: '一起規劃半日活動或完成一件小事', action: '觀察主動程度、時間投入與遇到變化時的協調方式。', basis: '將流年窗口用於增加可驗證的互動' },
+          { key: 'developing-talk', title: '關係對話', where: '在沒有趕時間、能安心談話的場合', action: '直接確認彼此期待、界線與下一步，並觀察後續行動。', basis: '夫妻宮主題轉為關係確認，而非尋找新人' },
+        ]
+      : [
+          { key: 'partnered-plan', title: '共同規劃', where: '旅行、居住、財務或下一階段的生活安排', action: '把模糊期待拆成時間、責任與可執行的決定。', basis: '夫妻宮主題轉為承諾與生活整合' },
+          { key: 'partnered-repair', title: '壓力與修復', where: '忙碌、分工不均或意見不同的真實情境', action: '觀察兩人能否暫停攻防、說清需求並重新協調。', basis: '以互動品質驗證關係，不以流年判定吉凶' },
+        ];
   const personChecks = reportStatus === 'single'
     ? ['看對方是否穩定回應，而不只看一開始的熱情。','觀察遇到差異時，能不能好好說話。',forecast.relationshipChallenges[0] || '確認彼此對界線與未來的理解。']
     : reportStatus === 'developing'
@@ -695,7 +724,7 @@ export default function LoveHome() {
       <div className="result-four-heading"><small>FOUR RESULTS</small><h2>{reportMode.resultsTitle}</h2><p>以下內容已依「{LOVE_STATUS_ADVICE[reportStatus].label}」重新解讀。</p></div>
       <div className="result-four-grid">
         <article className="result-block timing-result"><span className="result-icon"><CalendarDays size={20}/></span><small>01・WHEN</small><h3>{reportMode.timingTitle}</h3>{timingWindows.length > 0 && <div className="horizon-list">{timingWindows.map((item) => <div key={item.year}><span>{item.year === currentYear ? '現在' : `+${item.year-currentYear} 年`}</span><b>{item.year}</b><strong>{timingLevel(item.score)}</strong><p>{item.signals.join('・') || '關係互動增加'}</p></div>)}</div>}<p className="result-note">只呈現訊號較集中的年份；它代表適合採取相應行動的相對窗口，不是事件或結果的機率。</p></article>
-        <article className="result-block"><span className="result-icon"><MapPin size={20}/></span><small>02・WHERE</small><h3>{reportMode.sceneTitle}</h3><div className="scene-list">{sceneInsights.map((scene,index) => <div key={scene}><span>0{index+1}</span><p>{scene}</p></div>)}</div><p className="result-note">{reportMode.sceneNote}</p></article>
+        <article className="result-block"><span className="result-icon"><MapPin size={20}/></span><small>02・WHERE</small><h3>{reportMode.sceneTitle}</h3><div className="scene-list scene-direction-list">{sceneInsights.map((direction,index) => <div key={direction.key}><span>0{index+1}</span><div><b>{direction.title}</b><p>{direction.where}</p><strong>怎麼做</strong><p>{direction.action}</p><small>命盤依據：{direction.basis}</small></div></div>)}</div><p className="result-note">{reportMode.sceneNote}</p></article>
         <article className="result-block"><span className="result-icon"><Users size={20}/></span><small>03・WHO</small><h3>{reportMode.personTitle}</h3><p className="result-lead">{reportStatus === 'single' ? (forecast.partnerTraits.slice(0,2).join('，') || reportMode.personLead) : reportMode.personLead}</p><ul>{personChecks.map((item) => <li key={item}>{item}</li>)}</ul></article>
         <article className="result-block action-result"><span className="result-icon"><Compass size={20}/></span><small>04・HOW</small><h3>現在可以怎麼做？</h3><p className="result-lead">{advice.title}</p><ol>{advice.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol></article>
       </div>
