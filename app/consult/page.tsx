@@ -2,6 +2,7 @@
 
 import { astro } from 'iztro';
 import type { IFunctionalAstrolabe } from 'iztro/lib/astro/FunctionalAstrolabe';
+import type { IFunctionalHoroscope } from 'iztro/lib/astro/FunctionalHoroscope';
 import type { PalaceName } from 'iztro/lib/i18n';
 import { ArrowLeft, ArrowUp, Bot, CalendarDays, ChevronDown, Compass, LockKeyhole, MessageCircleQuestion, RotateCcw, Send, Sparkles } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
@@ -9,6 +10,13 @@ import { FormEvent, useMemo, useState } from 'react';
 const HOURS = ['早子時 00:00–00:59','丑時 01:00–02:59','寅時 03:00–04:59','卯時 05:00–06:59','辰時 07:00–08:59','巳時 09:00–10:59','午時 11:00–12:59','未時 13:00–14:59','申時 15:00–16:59','酉時 17:00–18:59','戌時 19:00–20:59','亥時 21:00–22:59','晚子時 23:00–23:59'];
 const PALACES: PalaceName[] = ['命宮','兄弟','夫妻','子女','財帛','疾厄','遷移','僕役','官祿','田宅','福德','父母'];
 const SUGGESTIONS = ['我適合什麼工作方式？','感情中要注意什麼？','今年該專注哪個面向？','命宮空宮要怎麼看？'];
+const CONTEXT_SCOPES = [
+  { key: 'decadal', label: '大限' },
+  { key: 'yearly', label: '流年' },
+  { key: 'monthly', label: '流月' },
+  { key: 'daily', label: '流日' },
+  { key: 'hourly', label: '流時' },
+] as const;
 
 const STAR_GUIDE: Record<string, { strength: string; reminder: string }> = {
   紫微:{strength:'整合資源與承擔主導角色',reminder:'標準高時，也要聽見不同意見'},天機:{strength:'分析、規劃與快速調整',reminder:'想法多時先排定優先順序'},太陽:{strength:'公開表達與帶動他人',reminder:'照顧全局時別過度消耗'},武曲:{strength:'務實執行與資源管理',reminder:'解決問題之外也要回應感受'},天同:{strength:'同理協調與營造舒服氛圍',reminder:'不要為了和諧延後必要決定'},廉貞:{strength:'策略判斷與界線意識',reminder:'減少試探，直接說清期待'},天府:{strength:'穩定承接與長期經營',reminder:'求穩之餘保留合理變化'},太陰:{strength:'細膩觀察與感受力',reminder:'不確定時用具體資訊降低內耗'},貪狼:{strength:'人際魅力與探索動力',reminder:'選項多時要建立界線'},巨門:{strength:'研究辨析與溝通表達',reminder:'先傾聽再釐清彼此定義'},天相:{strength:'公平協調與品質把關',reminder:'不要為維持和諧壓低需求'},天梁:{strength:'原則判斷與照顧支持',reminder:'幫助他人前先分清責任'},七殺:{strength:'果斷突破與面對挑戰',reminder:'重大變化前保留緩衝'},破軍:{strength:'改革重整與重新開始',reminder:'改變要有節奏，不必一次推翻全部'},
@@ -16,6 +24,7 @@ const STAR_GUIDE: Record<string, { strength: string; reminder: string }> = {
 
 type Gender = '男' | '女';
 type Message = { role: 'assistant' | 'user'; text: string; basis?: string[] };
+type ShiftUnit = 'year' | 'month' | 'day' | 'hour';
 
 function makeChart(date: string, hour: number, gender: Gender) {
   return astro.bySolar(date, hour, gender, true, 'zh-TW') as IFunctionalAstrolabe;
@@ -29,7 +38,19 @@ function palaceContext(chart: IFunctionalAstrolabe, name: PalaceName) {
   return { palace, stars, borrowed, opposite };
 }
 
-function answerFor(chart: IFunctionalAstrolabe, question: string) {
+function formatDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function shiftDate(value: string, unit: Exclude<ShiftUnit, 'hour'>, amount: number) {
+  const next = new Date(`${value}T00:00:00Z`);
+  if (unit === 'year') next.setUTCFullYear(next.getUTCFullYear() + amount);
+  if (unit === 'month') next.setUTCMonth(next.getUTCMonth() + amount);
+  if (unit === 'day') next.setUTCDate(next.getUTCDate() + amount);
+  return formatDate(next);
+}
+
+function answerFor(chart: IFunctionalAstrolabe, horoscope: IFunctionalHoroscope, contextDate: string, question: string) {
   const q = question.trim();
   let palaceName: PalaceName = '命宮';
   let topic = '你的核心反應模式';
@@ -48,10 +69,15 @@ function answerFor(chart: IFunctionalAstrolabe, question: string) {
   const reminders = guides.map((guide) => guide.reminder).slice(0, 2).join('；') || '不要只靠單一星曜下結論，應和現況交叉驗證';
   const mutagens = context.stars.filter((star) => star.mutagen).map((star) => `${star.name}化${star.mutagen}`);
   const borrowedText = context.borrowed ? `${palaceName}是空宮，本題借看對宮「${context.opposite.name}」的主星。` : '';
-  const timingText = /今年|流年|運勢|目前|現在/.test(q) ? `你現在虛歲約 ${new Date().getFullYear() - Number(chart.solarDate.slice(0,4)) + 1} 歲；年度問題還要再疊加流年，這裡先用本命提供方向，不把它說成必然事件。` : '';
+  const flowSignals = CONTEXT_SCOPES.flatMap(({key,label}) => {
+    const scope = horoscope[key];
+    const index = scope.palaceNames.indexOf(palaceName);
+    return (scope.stars?.[index] ?? []).map((star) => `${label}${star.name}`);
+  }).slice(0, 6);
+  const timingText = `目前問盤上下文是 ${contextDate}・${horoscope.hourly.heavenlyStem}${horoscope.hourly.earthlyBranch}時，落在${horoscope.decadal.heavenlyStem}${horoscope.decadal.earthlyBranch}大限、${horoscope.yearly.heavenlyStem}${horoscope.yearly.earthlyBranch}流年。${flowSignals.length ? `此題相關流曜有${flowSignals.join('、')}。` : '此題宮位沒有額外流曜集中，先以本命傾向為主。'}這些代表議題活躍度，不等於事件必然發生。`;
   return {
-    text: `這題先看「${palaceName}」，主題是${topic}。${borrowedText}以${starNames.join('、') || '對宮星系'}來看，你較能運用${strengths}。實際行動上，先留意：${reminders}。${timingText}\n\n建議你把問題再縮小成一個可驗證情境，例如「未來三個月該主動認識新人，還是先整理關係界線？」回答會更有用。`,
-    basis: [`${palaceName}：${starNames.join('・') || '空宮'}`, context.borrowed ? `借看${context.opposite.name}` : '本宮主星', ...(mutagens.length ? mutagens : ['本命基礎'])],
+    text: `這題先看「${palaceName}」，主題是${topic}。${borrowedText}以${starNames.join('、') || '對宮星系'}來看，你較能運用${strengths}。實際行動上，先留意：${reminders}。\n\n${timingText}\n\n建議你把問題再縮小成一個可驗證情境，例如「未來三個月該主動認識新人，還是先整理關係界線？」回答會更有用。`,
+    basis: [`${palaceName}：${starNames.join('・') || '空宮'}`, context.borrowed ? `借看${context.opposite.name}` : '本宮主星', `${horoscope.yearly.heavenlyStem}${horoscope.yearly.earthlyBranch}流年`, ...(mutagens.length ? mutagens : flowSignals.length ? flowSignals.slice(0, 2) : ['本命基礎'])],
   };
 }
 
@@ -60,9 +86,22 @@ export default function ConsultPage() {
   const [hour, setHour] = useState(6);
   const [gender, setGender] = useState<Gender>('男');
   const [chart, setChart] = useState(() => makeChart('1990-08-17', 6, '男'));
+  const [contextDate, setContextDate] = useState('2026-09-03');
+  const [contextHour, setContextHour] = useState(6);
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<Message[]>([{role:'assistant',text:'命盤已準備好。你可以從下方題目開始，或直接問一個和自己目前處境有關的問題。我會說明參考宮位與星曜，不把解讀說成必然結果。'}]);
   const overview = useMemo(() => (['命宮','官祿','夫妻','福德'] as PalaceName[]).map((name) => palaceContext(chart, name)), [chart]);
+  const horoscope = useMemo(() => chart.horoscope(contextDate, contextHour), [chart, contextDate, contextHour]);
+
+  function moveContext(unit: ShiftUnit, amount: number) {
+    if (unit !== 'hour') { setContextDate((value) => shiftDate(value, unit, amount)); return; }
+    setContextHour((value) => {
+      const next = value + amount;
+      if (next < 0) { setContextDate((dateValue) => shiftDate(dateValue, 'day', -1)); return 12; }
+      if (next > 12) { setContextDate((dateValue) => shiftDate(dateValue, 'day', 1)); return 0; }
+      return next;
+    });
+  }
 
   function updateChart(event: FormEvent) {
     event.preventDefault();
@@ -75,7 +114,7 @@ export default function ConsultPage() {
   function ask(text = question) {
     const clean = text.trim();
     if (!clean) return;
-    const answer = answerFor(chart, clean);
+    const answer = answerFor(chart, horoscope, contextDate, clean);
     setMessages((items) => [...items,{role:'user',text:clean},{role:'assistant',...answer}]);
     setQuestion('');
     requestAnimationFrame(() => document.querySelector('.chat-log-end')?.scrollIntoView({behavior:'smooth',block:'end'}));
@@ -92,16 +131,26 @@ export default function ConsultPage() {
       <button type="submit"><RotateCcw size={15}/> 更新命盤</button>
     </form>
 
+    <section className="context-bar" aria-label="當前問盤上下文">
+      <div className="context-bar-heading"><span>當前問盤上下文</span><small>右側回答會同步使用這個時間</small></div>
+      <div className="context-controls">
+        <button type="button" onClick={() => moveContext('year',-10)}>−10年</button><button type="button" onClick={() => moveContext('year',-1)}>−1年</button><button type="button" onClick={() => moveContext('month',-1)}>−1月</button><button type="button" onClick={() => moveContext('day',-1)}>−1日</button><button type="button" onClick={() => moveContext('hour',-1)}>−1時</button>
+        <label><span className="sr-only">問盤日期</span><input type="date" value={contextDate} onChange={(event) => setContextDate(event.target.value)}/></label><strong>{horoscope.hourly.earthlyBranch}</strong>
+        <button type="button" onClick={() => moveContext('hour',1)}>+1時</button><button type="button" onClick={() => moveContext('day',1)}>+1日</button><button type="button" onClick={() => moveContext('month',1)}>+1月</button><button type="button" onClick={() => moveContext('year',1)}>+1年</button><button type="button" onClick={() => moveContext('year',10)}>+10年</button><button type="button" onClick={() => {const now = new Date();setContextDate(formatDate(now));setContextHour(now.getHours() === 23 ? 12 : Math.ceil(now.getHours()/2));}}>今日</button>
+      </div>
+      <div className="context-summary"><span>陽曆 <b>{horoscope.solarDate}</b></span><span>農曆 <b>{horoscope.lunarDate}</b></span>{CONTEXT_SCOPES.map(({key,label}) => <span key={key}>{label} <b>{horoscope[key].heavenlyStem}{horoscope[key].earthlyBranch}</b></span>)}</div>
+    </section>
+
     <section className="consult-workspace">
       <div className="consult-chart">
         <div className="consult-section-heading"><div><span className="eyebrow">CURRENT CHART</span><h2>命盤問答脈絡</h2></div><span><LockKeyhole size={13}/> 僅瀏覽器內計算</span></div>
         <div className="consult-overview">{overview.map(({palace,stars,borrowed,opposite}) => <article key={palace.name}><small>{palace.name}</small><h3>{stars.map((star) => star.name).join('・') || '無主星'}</h3><p>{borrowed ? `空宮，借看${opposite.name}` : '本宮主星'}{stars.some((star) => star.mutagen) ? `・${stars.filter((star) => star.mutagen).map((star) => `${star.name}化${star.mutagen}`).join('、')}` : ''}</p></article>)}</div>
-        <div className="consult-palaces">{PALACES.map((name) => { const item = palaceContext(chart,name); return <article key={name}><div><span>{item.palace.heavenlyStem}{item.palace.earthlyBranch}</span><b>{name}</b></div><p>{item.stars.map((star) => star.name).join('・') || '空宮'}</p><small>{item.borrowed ? `借 ${item.opposite.name}` : item.palace.changsheng12}</small></article>; })}</div>
+        <div className="consult-palaces">{PALACES.map((name) => { const item = palaceContext(chart,name); const palaceIndex = chart.palaces.findIndex((palace) => palace.name === name); const flowStars = CONTEXT_SCOPES.flatMap(({key}) => horoscope[key].stars?.[palaceIndex] ?? []).map((star) => star.name).slice(0,5); return <article key={name}><div><span>{item.palace.heavenlyStem}{item.palace.earthlyBranch}</span><b>{name}</b></div><p>{item.stars.map((star) => star.name).join('・') || '空宮'}</p><div className="palace-context-tags">{CONTEXT_SCOPES.slice(0,3).map(({key,label}) => <span key={key}>{label}・{horoscope[key].palaceNames[palaceIndex]?.replace('宮','')}</span>)}</div>{flowStars.length > 0 && <div className="palace-flow-stars">{flowStars.join('・')}</div>}<small>{item.borrowed ? `借 ${item.opposite.name}` : item.palace.changsheng12}</small></article>; })}</div>
         <div className="consult-method"><Compass size={18}/><p><b>回答方式</b>：先辨認問題所屬宮位，再看本宮或空宮借星、星曜特質及四化。建議文字是本站規則映射，不是 iztro 的原始解盤，也不取代專業意見。</p></div>
       </div>
 
       <aside className="chat-panel">
-        <div className="chat-heading"><div className="chat-bot"><Bot size={21}/></div><div><small>命盤 AI 問答</small><h2>想先了解什麼？</h2></div><span>本機版</span></div>
+        <div className="chat-heading"><div className="chat-bot"><Bot size={21}/></div><div><small>命盤 AI 問答・{contextDate}</small><h2>想先了解什麼？</h2></div><span>{horoscope.yearly.heavenlyStem}{horoscope.yearly.earthlyBranch}流年</span></div>
         <div className="chat-suggestions">{SUGGESTIONS.map((item) => <button type="button" key={item} onClick={() => ask(item)}>{item}<ArrowUp size={12}/></button>)}</div>
         <div className="chat-log" aria-live="polite">{messages.map((message,index) => <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Bot size={14}/> : '你'}</span><div><p>{message.text}</p>{message.basis && <div className="answer-basis">{message.basis.map((item) => <small key={item}>{item}</small>)}</div>}</div></div>)}<i className="chat-log-end"/></div>
         <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> 請勿輸入姓名或聯絡資訊</span><button type="submit" disabled={!question.trim()}><Send size={14}/> 提問</button></div></form>
