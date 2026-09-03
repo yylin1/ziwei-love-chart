@@ -4,7 +4,7 @@ import { astro } from 'iztro';
 import type { IFunctionalAstrolabe } from 'iztro/lib/astro/FunctionalAstrolabe';
 import type { IFunctionalHoroscope } from 'iztro/lib/astro/FunctionalHoroscope';
 import type { PalaceName } from 'iztro/lib/i18n';
-import { ArrowLeft, ArrowUp, Bot, CalendarDays, ChevronDown, Compass, LockKeyhole, MessageCircleQuestion, RotateCcw, Send, Settings2, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Bot, CalendarDays, ChevronDown, Compass, LockKeyhole, MessageCircleQuestion, RotateCcw, Send, Sparkles } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
 
 const HOURS = ['早子時 00:00–00:59','丑時 01:00–02:59','寅時 03:00–04:59','卯時 05:00–06:59','辰時 07:00–08:59','巳時 09:00–10:59','午時 11:00–12:59','未時 13:00–14:59','申時 15:00–16:59','酉時 17:00–18:59','戌時 19:00–20:59','亥時 21:00–22:59','晚子時 23:00–23:59'];
@@ -17,6 +17,8 @@ const CONTEXT_SCOPES = [
   { key: 'daily', label: '流日' },
   { key: 'hourly', label: '流時' },
 ] as const;
+const NVIDIA_ENDPOINT = 'https://inference-api.nvidia.com/v1/chat/completions';
+const NVIDIA_MODEL = 'nvidia/moonshotai/kimi-k3';
 
 const STAR_GUIDE: Record<string, { strength: string; reminder: string }> = {
   紫微:{strength:'整合資源與承擔主導角色',reminder:'標準高時，也要聽見不同意見'},天機:{strength:'分析、規劃與快速調整',reminder:'想法多時先排定優先順序'},太陽:{strength:'公開表達與帶動他人',reminder:'照顧全局時別過度消耗'},武曲:{strength:'務實執行與資源管理',reminder:'解決問題之外也要回應感受'},天同:{strength:'同理協調與營造舒服氛圍',reminder:'不要為了和諧延後必要決定'},廉貞:{strength:'策略判斷與界線意識',reminder:'減少試探，直接說清期待'},天府:{strength:'穩定承接與長期經營',reminder:'求穩之餘保留合理變化'},太陰:{strength:'細膩觀察與感受力',reminder:'不確定時用具體資訊降低內耗'},貪狼:{strength:'人際魅力與探索動力',reminder:'選項多時要建立界線'},巨門:{strength:'研究辨析與溝通表達',reminder:'先傾聽再釐清彼此定義'},天相:{strength:'公平協調與品質把關',reminder:'不要為維持和諧壓低需求'},天梁:{strength:'原則判斷與照顧支持',reminder:'幫助他人前先分清責任'},七殺:{strength:'果斷突破與面對挑戰',reminder:'重大變化前保留緩衝'},破軍:{strength:'改革重整與重新開始',reminder:'改變要有節奏，不必一次推翻全部'},
@@ -135,11 +137,8 @@ export default function ConsultPage() {
   const [contextDate, setContextDate] = useState('2026-09-03');
   const [contextHour, setContextHour] = useState(6);
   const [question, setQuestion] = useState('');
-  const [apiEndpoint, setApiEndpoint] = useState('');
-  const [apiModel, setApiModel] = useState('');
-  const [apiEndpointDraft, setApiEndpointDraft] = useState('');
-  const [apiModelDraft, setApiModelDraft] = useState('');
-  const [showApiSettings, setShowApiSettings] = useState(false);
+  const [apiToken, setApiToken] = useState('');
+  const [tokenDraft, setTokenDraft] = useState('');
   const [isAsking, setIsAsking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([{role:'assistant',text:'命盤已準備好。你可以從下方題目開始，或直接問一個和自己目前處境有關的問題。我會說明參考宮位與星曜，不把解讀說成必然結果。'}]);
   const overview = useMemo(() => (['命宮','官祿','夫妻','福德'] as PalaceName[]).map((name) => palaceContext(chart, name)), [chart]);
@@ -165,24 +164,29 @@ export default function ConsultPage() {
 
   async function ask(text = question) {
     const clean = text.trim();
-    if (!clean || isAsking) return;
+    if (!clean || isAsking || !apiToken) return;
     setMessages((items) => [...items,{role:'user',text:clean}]);
     setQuestion('');
-    if (!apiEndpoint) {
-      const answer = answerFor(chart, horoscope, contextDate, clean);
-      setMessages((items) => [...items,{role:'assistant',...answer}]);
-      requestAnimationFrame(() => document.querySelector('.chat-log-end')?.scrollIntoView({behavior:'smooth',block:'end'}));
-      return;
-    }
     setIsAsking(true);
     try {
-      const response = await fetch(apiEndpoint, {
+      const payload = buildAiPayload(chart, horoscope, hour, contextHour, contextDate, clean, NVIDIA_MODEL);
+      const localContext = answerFor(chart, horoscope, contextDate, clean);
+      const response = await fetch(NVIDIA_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
         credentials: 'omit',
-        body: JSON.stringify(buildAiPayload(chart, horoscope, hour, contextHour, contextDate, clean, apiModel)),
+        body: JSON.stringify({
+          model: NVIDIA_MODEL,
+          messages: [
+            { role: 'system', content: `${payload.instruction.join('\n')}\n請將回答整理成「直接回答、本命依據、運限依據、現在建議、限制」五段；不可把命理描述成科學定論。` },
+            { role: 'user', content: `問題：${clean}\n\n本機規則抽取的初步脈絡：${localContext.text}\n\n完整紫微資料：${JSON.stringify(payload)}` },
+          ],
+          max_tokens: 1400,
+          temperature: 0.35,
+          stream: false,
+        }),
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) throw new Error(response.status === 401 ? 'NVIDIA token 無效或已失效' : `NVIDIA API HTTP ${response.status}`);
       const raw = await response.text();
       let parsed: unknown;
       try { parsed = JSON.parse(raw); } catch { parsed = { answer: raw }; }
@@ -191,7 +195,7 @@ export default function ConsultPage() {
       setMessages((items) => [...items,{role:'assistant',...answer}]);
     } catch (error) {
       const reason = error instanceof Error ? error.message : '未知錯誤';
-      setMessages((items) => [...items,{role:'assistant',text:`外部 AI 暫時無法回答（${reason}）。請檢查代理 API 網址、CORS 與回應格式；你的命盤資料不會改存到本站。`,basis:['連線失敗・未改用假 AI 回答']}]);
+      setMessages((items) => [...items,{role:'assistant',text:`NVIDIA AI 暫時無法回答（${reason}）。請確認自己的 token 仍有效後再試一次。`,basis:['連線失敗・未改用本機文字冒充 AI']}]);
     } finally {
       setIsAsking(false);
     }
@@ -200,7 +204,7 @@ export default function ConsultPage() {
 
   return <main className="consult-page">
     <header className="consult-header"><a href="../" className="brand"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a><a href="../"><ArrowLeft size={15}/> 返回完整命盤</a></header>
-    <section className="consult-title"><span className="eyebrow"><Sparkles size={14}/> BETA・命盤脈絡問答</span><h1>問你的命盤，<em>也看見答案依據。</em></h1><p>{apiEndpoint ? '已設定外部 AI 代理；提問時會傳送完整命盤、問盤時間與問題。' : '目前使用瀏覽器內規則回答；你可設定自己的安全代理 API，啟用外部 AI。'}</p></section>
+    <section className="consult-title"><span className="eyebrow"><Sparkles size={14}/> NVIDIA KIMI K3・命盤問答</span><h1>問你的命盤，<em>也看見答案依據。</em></h1><p>{apiToken ? 'NVIDIA AI 已啟用；提問時會直接傳送完整命盤、問盤時間與問題。' : '使用自己的 NVIDIA token 啟用 AI；token 只保留在目前分頁，重新整理即清除。'}</p></section>
     <form className="consult-inputs" onSubmit={updateChart}>
       <div><small>目前命盤</small><b>{chart.solarDate}・{chart.gender}命・{chart.fiveElementsClass}</b></div>
       <label><span>國曆生日</span><div className="control"><CalendarDays size={16}/><input type="date" value={date} onChange={(event) => setDate(event.target.value)} required/></div></label>
@@ -229,24 +233,11 @@ export default function ConsultPage() {
 
       <aside className="chat-panel">
         <div className="chat-heading"><div className="chat-bot"><Bot size={21}/></div><div><small>命盤 AI 問答・{contextDate}</small><h2>想先了解什麼？</h2></div><span>{horoscope.yearly.heavenlyStem}{horoscope.yearly.earthlyBranch}流年</span></div>
-        <div className="chat-api-bar"><span><i className={apiEndpoint ? 'connected' : ''}/>{apiEndpoint ? `外部 AI・${apiModel || '預設模型'}` : '本機規則模式'}</span><button type="button" onClick={() => {setApiEndpointDraft(apiEndpoint);setApiModelDraft(apiModel);setShowApiSettings(true);}}><Settings2 size={13}/> AI API 設定</button></div>
-        <div className="chat-suggestions">{SUGGESTIONS.map((item) => <button type="button" key={item} onClick={() => ask(item)}>{item}<ArrowUp size={12}/></button>)}</div>
+        <div className={`nvidia-token-bar ${apiToken ? 'is-ready' : ''}`}>{apiToken ? <><span><i/> NVIDIA AI 已啟用・Kimi K3</span><button type="button" onClick={() => {setApiToken('');setTokenDraft('');}}>清除 token</button></> : <><label htmlFor="nvidia-token"><LockKeyhole size={13}/><span><b>輸入自己的 NVIDIA token</b><small>只存於目前分頁，不會寫入 GitHub</small></span></label><div><input id="nvidia-token" type="password" value={tokenDraft} onChange={(event) => setTokenDraft(event.target.value)} placeholder="nvapi-… 或 sk-…" autoComplete="off" spellCheck={false}/><button type="button" disabled={!tokenDraft.trim()} onClick={() => {setApiToken(tokenDraft.trim());setMessages((items) => [...items,{role:'assistant',text:'NVIDIA AI 已啟用。現在提問時，我會把完整命盤與目前問盤時間一起送出分析。',basis:[NVIDIA_MODEL,'token 僅保留於目前分頁']}]);}}>啟用 AI</button></div></>}</div>
+        <div className="chat-suggestions">{SUGGESTIONS.map((item) => <button type="button" key={item} onClick={() => apiToken ? ask(item) : setQuestion(item)}>{item}<ArrowUp size={12}/></button>)}</div>
         <div className="chat-log" aria-live="polite">{messages.map((message,index) => <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Bot size={14}/> : '你'}</span><div><p>{message.text}</p>{message.basis && <div className="answer-basis">{message.basis.map((item) => <small key={item}>{item}</small>)}</div>}</div></div>)}{isAsking && <div className="chat-loading"><Bot size={14}/><span>正在整理命盤脈絡並等待 AI 回覆…</span></div>}<i className="chat-log-end"/></div>
-        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> 請勿輸入姓名或聯絡資訊</span><button type="submit" disabled={!question.trim() || isAsking}><Send size={14}/> {isAsking ? '分析中' : '提問'}</button></div></form>
+        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> {apiToken ? '命盤會直接送往 NVIDIA 分析' : '請先輸入自己的 NVIDIA token'}</span><button type="submit" disabled={!apiToken || !question.trim() || isAsking}><Send size={14}/> {isAsking ? '分析中' : '提問'}</button></div></form>
       </aside>
     </section>
-
-    {showApiSettings && <div className="api-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowApiSettings(false); }}>
-      <section className="api-modal" role="dialog" aria-modal="true" aria-labelledby="api-modal-title">
-        <div className="api-modal-heading"><div><small>EXTERNAL AI CONNECTOR</small><h2 id="api-modal-title">串接你的 AI 模型</h2></div><button type="button" aria-label="關閉 API 設定" onClick={() => setShowApiSettings(false)}><X size={18}/></button></div>
-        <div className="api-security"><LockKeyhole size={17}/><p><b>不要在這裡填 API Key。</b>公開網站的前端資訊任何人都能查看；請提供由你控制、已在後端保存金鑰的 HTTPS 代理 API。</p></div>
-        <label><span>代理 API 網址</span><input type="url" value={apiEndpointDraft} onChange={(event) => setApiEndpointDraft(event.target.value.trim())} placeholder="https://api.example.com/ziwei-query"/></label>
-        <label><span>模型名稱（選填）</span><input value={apiModelDraft} onChange={(event) => setApiModelDraft(event.target.value)} placeholder="例如：your-model-id"/></label>
-        <div className="api-contract"><h3>你的 API 需要做到</h3><ol><li>接受 <code>POST application/json</code></li><li>允許來源 <code>https://yylin1.github.io</code> 的 CORS 請求</li><li>回傳 <code>{`{"answer":"回答文字","basis":["依據"]}`}</code></li></ol><p>也相容 OpenAI Responses 的 <code>output_text</code>，以及 Chat Completions 的 <code>choices[0].message.content</code>。</p></div>
-        <details className="api-payload-preview"><summary>查看將送出的完整 JSON ＋</summary><pre>{JSON.stringify(buildAiPayload(chart, horoscope, hour, contextHour, contextDate, question.trim() || '請在這裡填入使用者問題', apiModelDraft), null, 2)}</pre></details>
-        <div className="api-modal-actions"><button type="button" className="clear" onClick={() => {setApiEndpoint('');setApiModel('');setApiEndpointDraft('');setApiModelDraft('');setShowApiSettings(false);}}>改用本機模式</button><button type="button" className="save" onClick={() => {setApiEndpoint(apiEndpointDraft);setApiModel(apiModelDraft);setShowApiSettings(false);}} disabled={!/^https:\/\//i.test(apiEndpointDraft)}>套用設定</button></div>
-        <p className="api-session-note">設定只保留在目前頁面記憶體，重新整理即清除。提問時才會把命盤送到你設定的 API。</p>
-      </section>
-    </div>}
   </main>;
 }
