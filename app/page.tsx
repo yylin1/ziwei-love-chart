@@ -723,7 +723,22 @@ export default function LoveHome() {
 
       <div className="result-four-heading"><small>FOUR RESULTS</small><h2>{reportMode.resultsTitle}</h2><p>以下內容已依「{LOVE_STATUS_ADVICE[reportStatus].label}」重新解讀。</p></div>
       <div className="result-four-grid">
-        <article className="result-block timing-result"><span className="result-icon"><CalendarDays size={20}/></span><small>01・WHEN</small><h3>{reportMode.timingTitle}</h3>{timingWindows.length > 0 && <div className="horizon-list">{timingWindows.map((item) => <div key={item.year}><span>{item.year === currentYear ? '現在' : `+${item.year-currentYear} 年`}</span><b>{item.year}</b><strong>{timingLevel(item.score)}</strong><p>{item.signals.join('・') || '關係互動增加'}</p></div>)}</div>}<p className="result-note">只呈現訊號較集中的年份；它代表適合採取相應行動的相對窗口，不是事件或結果的機率。</p></article>
+        <article className="result-block timing-result">
+          <span className="result-icon"><CalendarDays size={20}/></span><small>01・WHEN</small><h3>{reportMode.timingTitle}</h3>
+          {timingWindows.length > 0 && <div className="horizon-list">{timingWindows.map((item) => <div key={item.year}><span>{item.year === currentYear ? '現在' : `+${item.year-currentYear} 年`}</span><b>{item.year}</b><strong>{timingLevel(item.score)}</strong><p>{item.signals.join('・') || '關係互動增加'}</p></div>)}</div>}
+          <p className="result-note">只呈現訊號較集中的年份；它代表適合採取相應行動的相對窗口，不是事件或結果的機率。</p>
+          <details className="timing-method">
+            <summary><span><Info size={14}/> 這些年份怎麼算？</span><b>查看依據 ＋</b></summary>
+            <div className="timing-method-body">
+              <p><strong>資料來源</strong>以開源 <a href="https://github.com/SylarLong/iztro" target="_blank" rel="noreferrer">iztro 2.6.0</a> 排出本命十二宮、大限及各年流年盤；年份分數與文字解讀是本站自訂指標，不是 iztro 內建結論，也不是紫微斗數唯一公式。</p>
+              <div className="timing-rules">
+                <span>基準值 <b>4</b></span><span>紅鸞／天喜 <b>各 +3</b></span><span>流祿 <b>+2</b></span><span>流魁／流鉞、流昌／流曲 <b>+1</b></span><span>流羊／流陀 <b>−1</b></span><span>夫妻、命宮或福德被引動 <b>+2</b></span><span>遷移、僕役或官祿帶入場景 <b>+1</b></span><span>夫妻大限 <b>+2</b></span><span>落宮主星流年化祿／權／科／忌 <b>+2／+1／+1／−1</b></span>
+              </div>
+              {timingWindows.length > 0 && <div className="timing-evidence"><strong>本次顯示結果</strong>{timingWindows.map((item) => <p key={item.year}><b>{item.year}・{item.score}/10</b><span>流年夫妻宮落入本命{item.palace}；{item.signals.join('、') || '未出現單一決定性流曜'}</span></p>)}</div>}
+              <p className="timing-boundary">只有總分 6 分以上才顯示。分數經限制為 3–10 分，用於比較同一張命盤不同年份的相對活躍度；不能解讀為遇見、交往或結婚的成功機率。</p>
+            </div>
+          </details>
+        </article>
         <article className="result-block"><span className="result-icon"><MapPin size={20}/></span><small>02・WHERE</small><h3>{reportMode.sceneTitle}</h3><div className="scene-list scene-direction-list">{sceneInsights.map((direction,index) => <div key={direction.key}><span>0{index+1}</span><div><b>{direction.title}</b><p>{direction.where}</p><strong>怎麼做</strong><p>{direction.action}</p><small>命盤依據：{direction.basis}</small></div></div>)}</div><p className="result-note">{reportMode.sceneNote}</p></article>
         <article className="result-block"><span className="result-icon"><Users size={20}/></span><small>03・WHO</small><h3>{reportMode.personTitle}</h3><p className="result-lead">{reportStatus === 'single' ? (forecast.partnerTraits.slice(0,2).join('，') || reportMode.personLead) : reportMode.personLead}</p><ul>{personChecks.map((item) => <li key={item}>{item}</li>)}</ul></article>
         <article className="result-block action-result"><span className="result-icon"><Compass size={20}/></span><small>04・HOW</small><h3>現在可以怎麼做？</h3><p className="result-lead">{advice.title}</p><ol>{advice.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol></article>
