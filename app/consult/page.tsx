@@ -4,7 +4,7 @@ import { astro } from 'iztro';
 import type { IFunctionalAstrolabe } from 'iztro/lib/astro/FunctionalAstrolabe';
 import type { IFunctionalHoroscope } from 'iztro/lib/astro/FunctionalHoroscope';
 import type { PalaceName } from 'iztro/lib/i18n';
-import { ArrowLeft, ArrowUp, Bot, CalendarDays, ChevronDown, Compass, LockKeyhole, MessageCircleQuestion, RotateCcw, Send, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Bot, CalendarDays, ChevronDown, Compass, LockKeyhole, MessageCircleQuestion, RotateCcw, Send, Settings2, Sparkles, X } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
 
 const HOURS = ['早子時 00:00–00:59','丑時 01:00–02:59','寅時 03:00–04:59','卯時 05:00–06:59','辰時 07:00–08:59','巳時 09:00–10:59','午時 11:00–12:59','未時 13:00–14:59','申時 15:00–16:59','酉時 17:00–18:59','戌時 19:00–20:59','亥時 21:00–22:59','晚子時 23:00–23:59'];
@@ -25,6 +25,52 @@ const STAR_GUIDE: Record<string, { strength: string; reminder: string }> = {
 type Gender = '男' | '女';
 type Message = { role: 'assistant' | 'user'; text: string; basis?: string[] };
 type ShiftUnit = 'year' | 'month' | 'day' | 'hour';
+
+function buildAiPayload(chart: IFunctionalAstrolabe, horoscope: IFunctionalHoroscope, birthTimeIndex: number, contextTimeIndex: number, contextDate: string, question: string, model: string) {
+  return {
+    schemaVersion: 'ziwei-query.v1',
+    model: model || undefined,
+    generatedAt: new Date().toISOString(),
+    instruction: [
+      '請以繁體中文回答，先回答問題，再列出使用到的宮位、星曜與運限依據。',
+      'natalChart.palaces 是本命十二宮；queryHoroscope 的各 scope 中，palaceNames[index] 與 stars[index] 對應同一個本命宮位索引。',
+      '請區分本命傾向與大限、流年、流月、流日、流時，不把活躍訊號描述成必然事件。',
+      '若資料不足，請明確說明限制；不要推測姓名、外貌、疾病、死亡或保證婚姻結果。',
+    ],
+    question,
+    subject: {
+      solarDate: chart.solarDate,
+      lunarDate: chart.lunarDate,
+      birthTimeIndex,
+      birthTimeLabel: HOURS[birthTimeIndex],
+      gender: chart.gender,
+      fiveElementsClass: chart.fiveElementsClass,
+      zodiac: chart.zodiac,
+      sign: chart.sign,
+      soul: chart.soul,
+      body: chart.body,
+    },
+    queryContext: {
+      requestedDate: contextDate,
+      timeIndex: contextTimeIndex,
+      timeLabel: HOURS[contextTimeIndex],
+      resolvedSolarDate: horoscope.solarDate,
+      resolvedLunarDate: horoscope.lunarDate,
+    },
+    natalChart: chart.toJSON(),
+    queryHoroscope: horoscope.toJSON(),
+    source: { engine: 'iztro', version: '2.6.0', locale: 'zh-TW' },
+  };
+}
+
+function readAiResponse(data: unknown) {
+  if (!data || typeof data !== 'object') return null;
+  const value = data as { answer?: unknown; output_text?: unknown; basis?: unknown; choices?: Array<{ message?: { content?: unknown } }> };
+  const text = typeof value.answer === 'string' ? value.answer
+    : typeof value.output_text === 'string' ? value.output_text
+      : typeof value.choices?.[0]?.message?.content === 'string' ? value.choices[0].message.content : null;
+  return text ? { text, basis: Array.isArray(value.basis) ? value.basis.filter((item): item is string => typeof item === 'string') : ['外部 AI・依完整命盤與問盤時間回答'] } : null;
+}
 
 function makeChart(date: string, hour: number, gender: Gender) {
   return astro.bySolar(date, hour, gender, true, 'zh-TW') as IFunctionalAstrolabe;
@@ -89,6 +135,12 @@ export default function ConsultPage() {
   const [contextDate, setContextDate] = useState('2026-09-03');
   const [contextHour, setContextHour] = useState(6);
   const [question, setQuestion] = useState('');
+  const [apiEndpoint, setApiEndpoint] = useState('');
+  const [apiModel, setApiModel] = useState('');
+  const [apiEndpointDraft, setApiEndpointDraft] = useState('');
+  const [apiModelDraft, setApiModelDraft] = useState('');
+  const [showApiSettings, setShowApiSettings] = useState(false);
+  const [isAsking, setIsAsking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([{role:'assistant',text:'命盤已準備好。你可以從下方題目開始，或直接問一個和自己目前處境有關的問題。我會說明參考宮位與星曜，不把解讀說成必然結果。'}]);
   const overview = useMemo(() => (['命宮','官祿','夫妻','福德'] as PalaceName[]).map((name) => palaceContext(chart, name)), [chart]);
   const horoscope = useMemo(() => chart.horoscope(contextDate, contextHour), [chart, contextDate, contextHour]);
@@ -111,18 +163,44 @@ export default function ConsultPage() {
     } catch { setMessages((items) => [...items,{role:'assistant',text:'出生日期無法排盤，請重新核對後再試一次。'}]); }
   }
 
-  function ask(text = question) {
+  async function ask(text = question) {
     const clean = text.trim();
-    if (!clean) return;
-    const answer = answerFor(chart, horoscope, contextDate, clean);
-    setMessages((items) => [...items,{role:'user',text:clean},{role:'assistant',...answer}]);
+    if (!clean || isAsking) return;
+    setMessages((items) => [...items,{role:'user',text:clean}]);
     setQuestion('');
+    if (!apiEndpoint) {
+      const answer = answerFor(chart, horoscope, contextDate, clean);
+      setMessages((items) => [...items,{role:'assistant',...answer}]);
+      requestAnimationFrame(() => document.querySelector('.chat-log-end')?.scrollIntoView({behavior:'smooth',block:'end'}));
+      return;
+    }
+    setIsAsking(true);
+    try {
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        body: JSON.stringify(buildAiPayload(chart, horoscope, hour, contextHour, contextDate, clean, apiModel)),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const raw = await response.text();
+      let parsed: unknown;
+      try { parsed = JSON.parse(raw); } catch { parsed = { answer: raw }; }
+      const answer = readAiResponse(parsed);
+      if (!answer) throw new Error('回應缺少 answer');
+      setMessages((items) => [...items,{role:'assistant',...answer}]);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : '未知錯誤';
+      setMessages((items) => [...items,{role:'assistant',text:`外部 AI 暫時無法回答（${reason}）。請檢查代理 API 網址、CORS 與回應格式；你的命盤資料不會改存到本站。`,basis:['連線失敗・未改用假 AI 回答']}]);
+    } finally {
+      setIsAsking(false);
+    }
     requestAnimationFrame(() => document.querySelector('.chat-log-end')?.scrollIntoView({behavior:'smooth',block:'end'}));
   }
 
   return <main className="consult-page">
     <header className="consult-header"><a href="../" className="brand"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a><a href="../"><ArrowLeft size={15}/> 返回完整命盤</a></header>
-    <section className="consult-title"><span className="eyebrow"><Sparkles size={14}/> BETA・本機智慧問答</span><h1>問你的命盤，<em>也看見答案依據。</em></h1><p>回答直接根據目前盤面的宮位與星曜組合產生；不連接外部 AI、不上傳出生資料。</p></section>
+    <section className="consult-title"><span className="eyebrow"><Sparkles size={14}/> BETA・命盤脈絡問答</span><h1>問你的命盤，<em>也看見答案依據。</em></h1><p>{apiEndpoint ? '已設定外部 AI 代理；提問時會傳送完整命盤、問盤時間與問題。' : '目前使用瀏覽器內規則回答；你可設定自己的安全代理 API，啟用外部 AI。'}</p></section>
     <form className="consult-inputs" onSubmit={updateChart}>
       <div><small>目前命盤</small><b>{chart.solarDate}・{chart.gender}命・{chart.fiveElementsClass}</b></div>
       <label><span>國曆生日</span><div className="control"><CalendarDays size={16}/><input type="date" value={date} onChange={(event) => setDate(event.target.value)} required/></div></label>
@@ -151,10 +229,24 @@ export default function ConsultPage() {
 
       <aside className="chat-panel">
         <div className="chat-heading"><div className="chat-bot"><Bot size={21}/></div><div><small>命盤 AI 問答・{contextDate}</small><h2>想先了解什麼？</h2></div><span>{horoscope.yearly.heavenlyStem}{horoscope.yearly.earthlyBranch}流年</span></div>
+        <div className="chat-api-bar"><span><i className={apiEndpoint ? 'connected' : ''}/>{apiEndpoint ? `外部 AI・${apiModel || '預設模型'}` : '本機規則模式'}</span><button type="button" onClick={() => {setApiEndpointDraft(apiEndpoint);setApiModelDraft(apiModel);setShowApiSettings(true);}}><Settings2 size={13}/> AI API 設定</button></div>
         <div className="chat-suggestions">{SUGGESTIONS.map((item) => <button type="button" key={item} onClick={() => ask(item)}>{item}<ArrowUp size={12}/></button>)}</div>
-        <div className="chat-log" aria-live="polite">{messages.map((message,index) => <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Bot size={14}/> : '你'}</span><div><p>{message.text}</p>{message.basis && <div className="answer-basis">{message.basis.map((item) => <small key={item}>{item}</small>)}</div>}</div></div>)}<i className="chat-log-end"/></div>
-        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> 請勿輸入姓名或聯絡資訊</span><button type="submit" disabled={!question.trim()}><Send size={14}/> 提問</button></div></form>
+        <div className="chat-log" aria-live="polite">{messages.map((message,index) => <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Bot size={14}/> : '你'}</span><div><p>{message.text}</p>{message.basis && <div className="answer-basis">{message.basis.map((item) => <small key={item}>{item}</small>)}</div>}</div></div>)}{isAsking && <div className="chat-loading"><Bot size={14}/><span>正在整理命盤脈絡並等待 AI 回覆…</span></div>}<i className="chat-log-end"/></div>
+        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> 請勿輸入姓名或聯絡資訊</span><button type="submit" disabled={!question.trim() || isAsking}><Send size={14}/> {isAsking ? '分析中' : '提問'}</button></div></form>
       </aside>
     </section>
+
+    {showApiSettings && <div className="api-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowApiSettings(false); }}>
+      <section className="api-modal" role="dialog" aria-modal="true" aria-labelledby="api-modal-title">
+        <div className="api-modal-heading"><div><small>EXTERNAL AI CONNECTOR</small><h2 id="api-modal-title">串接你的 AI 模型</h2></div><button type="button" aria-label="關閉 API 設定" onClick={() => setShowApiSettings(false)}><X size={18}/></button></div>
+        <div className="api-security"><LockKeyhole size={17}/><p><b>不要在這裡填 API Key。</b>公開網站的前端資訊任何人都能查看；請提供由你控制、已在後端保存金鑰的 HTTPS 代理 API。</p></div>
+        <label><span>代理 API 網址</span><input type="url" value={apiEndpointDraft} onChange={(event) => setApiEndpointDraft(event.target.value.trim())} placeholder="https://api.example.com/ziwei-query"/></label>
+        <label><span>模型名稱（選填）</span><input value={apiModelDraft} onChange={(event) => setApiModelDraft(event.target.value)} placeholder="例如：your-model-id"/></label>
+        <div className="api-contract"><h3>你的 API 需要做到</h3><ol><li>接受 <code>POST application/json</code></li><li>允許來源 <code>https://yylin1.github.io</code> 的 CORS 請求</li><li>回傳 <code>{`{"answer":"回答文字","basis":["依據"]}`}</code></li></ol><p>也相容 OpenAI Responses 的 <code>output_text</code>，以及 Chat Completions 的 <code>choices[0].message.content</code>。</p></div>
+        <details className="api-payload-preview"><summary>查看將送出的完整 JSON ＋</summary><pre>{JSON.stringify(buildAiPayload(chart, horoscope, hour, contextHour, contextDate, question.trim() || '請在這裡填入使用者問題', apiModelDraft), null, 2)}</pre></details>
+        <div className="api-modal-actions"><button type="button" className="clear" onClick={() => {setApiEndpoint('');setApiModel('');setApiEndpointDraft('');setApiModelDraft('');setShowApiSettings(false);}}>改用本機模式</button><button type="button" className="save" onClick={() => {setApiEndpoint(apiEndpointDraft);setApiModel(apiModelDraft);setShowApiSettings(false);}} disabled={!/^https:\/\//i.test(apiEndpointDraft)}>套用設定</button></div>
+        <p className="api-session-note">設定只保留在目前頁面記憶體，重新整理即清除。提問時才會把命盤送到你設定的 API。</p>
+      </section>
+    </div>}
   </main>;
 }
