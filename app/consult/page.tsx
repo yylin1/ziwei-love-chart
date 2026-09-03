@@ -27,6 +27,7 @@ const STAR_GUIDE: Record<string, { strength: string; reminder: string }> = {
 type Gender = '男' | '女';
 type Message = { role: 'assistant' | 'user'; text: string; basis?: string[] };
 type ShiftUnit = 'year' | 'month' | 'day' | 'hour';
+type TokenStatus = 'idle' | 'checking' | 'ready' | 'error';
 
 function buildAiPayload(chart: IFunctionalAstrolabe, horoscope: IFunctionalHoroscope, birthTimeIndex: number, contextTimeIndex: number, contextDate: string, question: string, model: string) {
   return {
@@ -72,6 +73,17 @@ function readAiResponse(data: unknown) {
     : typeof value.output_text === 'string' ? value.output_text
       : typeof value.choices?.[0]?.message?.content === 'string' ? value.choices[0].message.content : null;
   return text ? { text, basis: Array.isArray(value.basis) ? value.basis.filter((item): item is string => typeof item === 'string') : ['外部 AI・依完整命盤與問盤時間回答'] } : null;
+}
+
+function apiErrorMessage(status: number, raw: string) {
+  let detail = '';
+  try {
+    const data = JSON.parse(raw) as { detail?: unknown; message?: unknown; error?: { message?: unknown } };
+    const candidate = data.error?.message ?? data.detail ?? data.message;
+    if (typeof candidate === 'string') detail = candidate;
+  } catch { /* Keep the HTTP status when the API does not return JSON. */ }
+  if (status === 401 || status === 403) return 'token 無效、已失效或無此模型權限';
+  return `HTTP ${status}${detail ? `：${detail}` : ''}`;
 }
 
 function makeChart(date: string, hour: number, gender: Gender) {
@@ -139,6 +151,8 @@ export default function ConsultPage() {
   const [question, setQuestion] = useState('');
   const [apiToken, setApiToken] = useState('');
   const [tokenDraft, setTokenDraft] = useState('');
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus>('idle');
+  const [tokenFeedback, setTokenFeedback] = useState('');
   const [isAsking, setIsAsking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([{role:'assistant',text:'命盤已準備好。你可以從下方題目開始，或直接問一個和自己目前處境有關的問題。我會說明參考宮位與星曜，不把解讀說成必然結果。'}]);
   const overview = useMemo(() => (['命宮','官祿','夫妻','福德'] as PalaceName[]).map((name) => palaceContext(chart, name)), [chart]);
@@ -162,19 +176,63 @@ export default function ConsultPage() {
     } catch { setMessages((items) => [...items,{role:'assistant',text:'出生日期無法排盤，請重新核對後再試一次。'}]); }
   }
 
+  async function verifyToken() {
+    const token = tokenDraft.trim();
+    if (!token || tokenStatus === 'checking') return;
+    setApiToken('');
+    setTokenStatus('checking');
+    setTokenFeedback('正在向 NVIDIA 發送最小測試請求…');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 45000);
+    try {
+      const response = await fetch(NVIDIA_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: NVIDIA_MODEL,
+          messages: [{ role: 'user', content: '請只回覆：連線成功' }],
+          max_tokens: 32,
+          temperature: 0,
+          stream: false,
+        }),
+      });
+      const raw = await response.text();
+      if (!response.ok) throw new Error(apiErrorMessage(response.status, raw));
+      if (!readAiResponse(JSON.parse(raw))) throw new Error('API 回應格式無法識別');
+      setApiToken(token);
+      setTokenDraft('');
+      setTokenStatus('ready');
+      setTokenFeedback('連線成功，現在可以提問。');
+      setMessages((items) => [...items,{role:'assistant',text:'NVIDIA AI 連線測試成功。現在提問時，我會把完整命盤與目前問盤時間一起送出分析。',basis:[NVIDIA_MODEL,'token 僅保留於目前分頁']}]);
+    } catch (error) {
+      const reason = error instanceof DOMException && error.name === 'AbortError'
+        ? '連線逾時，請稍後再試'
+        : error instanceof Error ? error.message : '未知錯誤';
+      setTokenStatus('error');
+      setTokenFeedback(`連線失敗：${reason}`);
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
   async function ask(text = question) {
     const clean = text.trim();
-    if (!clean || isAsking || !apiToken) return;
+    if (!clean || isAsking || !apiToken || tokenStatus !== 'ready') return;
     setMessages((items) => [...items,{role:'user',text:clean}]);
     setQuestion('');
     setIsAsking(true);
     try {
       const payload = buildAiPayload(chart, horoscope, hour, contextHour, contextDate, clean, NVIDIA_MODEL);
       const localContext = answerFor(chart, horoscope, contextDate, clean);
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 120000);
       const response = await fetch(NVIDIA_ENDPOINT, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
         credentials: 'omit',
+        signal: controller.signal,
         body: JSON.stringify({
           model: NVIDIA_MODEL,
           messages: [
@@ -186,8 +244,9 @@ export default function ConsultPage() {
           stream: false,
         }),
       });
-      if (!response.ok) throw new Error(response.status === 401 ? 'NVIDIA token 無效或已失效' : `NVIDIA API HTTP ${response.status}`);
       const raw = await response.text();
+      window.clearTimeout(timeout);
+      if (!response.ok) throw new Error(apiErrorMessage(response.status, raw));
       let parsed: unknown;
       try { parsed = JSON.parse(raw); } catch { parsed = { answer: raw }; }
       const answer = readAiResponse(parsed);
@@ -204,7 +263,7 @@ export default function ConsultPage() {
 
   return <main className="consult-page">
     <header className="consult-header"><a href="../" className="brand"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a><a href="../"><ArrowLeft size={15}/> 返回完整命盤</a></header>
-    <section className="consult-title"><span className="eyebrow"><Sparkles size={14}/> NVIDIA KIMI K3・命盤問答</span><h1>問你的命盤，<em>也看見答案依據。</em></h1><p>{apiToken ? 'NVIDIA AI 已啟用；提問時會直接傳送完整命盤、問盤時間與問題。' : '使用自己的 NVIDIA token 啟用 AI；token 只保留在目前分頁，重新整理即清除。'}</p></section>
+    <section className="consult-title"><span className="eyebrow"><Sparkles size={14}/> NVIDIA KIMI K3・命盤問答</span><h1>問你的命盤，<em>也看見答案依據。</em></h1><p>{tokenStatus === 'ready' ? 'NVIDIA AI 連線已驗證；提問時會直接傳送完整命盤、問盤時間與問題。' : '使用自己的 NVIDIA token 啟用 AI；驗證成功後才能提問，重新整理即清除。'}</p></section>
     <form className="consult-inputs" onSubmit={updateChart}>
       <div><small>目前命盤</small><b>{chart.solarDate}・{chart.gender}命・{chart.fiveElementsClass}</b></div>
       <label><span>國曆生日</span><div className="control"><CalendarDays size={16}/><input type="date" value={date} onChange={(event) => setDate(event.target.value)} required/></div></label>
@@ -233,10 +292,10 @@ export default function ConsultPage() {
 
       <aside className="chat-panel">
         <div className="chat-heading"><div className="chat-bot"><Bot size={21}/></div><div><small>命盤 AI 問答・{contextDate}</small><h2>想先了解什麼？</h2></div><span>{horoscope.yearly.heavenlyStem}{horoscope.yearly.earthlyBranch}流年</span></div>
-        <div className={`nvidia-token-bar ${apiToken ? 'is-ready' : ''}`}>{apiToken ? <><span><i/> NVIDIA AI 已啟用・Kimi K3</span><button type="button" onClick={() => {setApiToken('');setTokenDraft('');}}>清除 token</button></> : <><label htmlFor="nvidia-token"><LockKeyhole size={13}/><span><b>輸入自己的 NVIDIA token</b><small>只存於目前分頁，不會寫入 GitHub</small></span></label><div><input id="nvidia-token" type="password" value={tokenDraft} onChange={(event) => setTokenDraft(event.target.value)} placeholder="nvapi-… 或 sk-…" autoComplete="off" spellCheck={false}/><button type="button" disabled={!tokenDraft.trim()} onClick={() => {setApiToken(tokenDraft.trim());setMessages((items) => [...items,{role:'assistant',text:'NVIDIA AI 已啟用。現在提問時，我會把完整命盤與目前問盤時間一起送出分析。',basis:[NVIDIA_MODEL,'token 僅保留於目前分頁']}]);}}>啟用 AI</button></div></>}</div>
+        <div className={`nvidia-token-bar ${tokenStatus === 'ready' ? 'is-ready' : ''}`}>{tokenStatus === 'ready' ? <><span><i/> NVIDIA AI 已驗證・Kimi K3</span><button type="button" onClick={() => {setApiToken('');setTokenDraft('');setTokenStatus('idle');setTokenFeedback('');}}>清除 token</button></> : <><label htmlFor="nvidia-token"><LockKeyhole size={13}/><span><b>輸入自己的 NVIDIA token</b><small>只存於目前分頁，不會寫入 GitHub</small></span></label><div><input id="nvidia-token" type="password" value={tokenDraft} onChange={(event) => {setTokenDraft(event.target.value);setTokenStatus('idle');setTokenFeedback('');}} placeholder="nvapi-… 或 sk-…" autoComplete="off" spellCheck={false}/><button type="button" disabled={!tokenDraft.trim() || tokenStatus === 'checking'} onClick={verifyToken}>{tokenStatus === 'checking' ? '驗證中…' : '驗證並啟用'}</button></div>{tokenFeedback && <p className={`token-feedback ${tokenStatus}`} role="status">{tokenFeedback}</p>}</>}</div>
         <div className="chat-suggestions">{SUGGESTIONS.map((item) => <button type="button" key={item} onClick={() => apiToken ? ask(item) : setQuestion(item)}>{item}<ArrowUp size={12}/></button>)}</div>
         <div className="chat-log" aria-live="polite">{messages.map((message,index) => <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Bot size={14}/> : '你'}</span><div><p>{message.text}</p>{message.basis && <div className="answer-basis">{message.basis.map((item) => <small key={item}>{item}</small>)}</div>}</div></div>)}{isAsking && <div className="chat-loading"><Bot size={14}/><span>正在整理命盤脈絡並等待 AI 回覆…</span></div>}<i className="chat-log-end"/></div>
-        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> {apiToken ? '命盤會直接送往 NVIDIA 分析' : '請先輸入自己的 NVIDIA token'}</span><button type="submit" disabled={!apiToken || !question.trim() || isAsking}><Send size={14}/> {isAsking ? '分析中' : '提問'}</button></div></form>
+        <form className="chat-compose" onSubmit={(event) => {event.preventDefault();ask();}}><label htmlFor="chart-question">問本命盤</label><textarea id="chart-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="例如：感情中我容易忽略什麼？" rows={3}/><div><span><MessageCircleQuestion size={13}/> {tokenStatus === 'ready' ? '命盤會直接送往 NVIDIA 分析' : '請先通過 NVIDIA token 連線驗證'}</span><button type="submit" disabled={tokenStatus !== 'ready' || !question.trim() || isAsking}><Send size={14}/> {isAsking ? '分析中' : '提問'}</button></div></form>
       </aside>
     </section>
   </main>;
