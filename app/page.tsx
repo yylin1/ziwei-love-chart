@@ -11,6 +11,7 @@ const HOURS = ['早子時 00:00–00:59','丑時 01:00–02:59','寅時 03:00–
 const GRID_ORDER = [5,6,7,8,4,-1,-1,9,3,-1,-1,10,2,1,0,11];
 type CalendarType = 'solar' | 'lunar';
 type Gender = '男' | '女';
+type QueryMode = 'chart' | 'love';
 
 const STAR_PROFILES: Record<string, { gift: string; watch: string }> = {
   紫微: { gift: '整合資源、承擔主導角色', watch: '別把標準拉得太高，也要聽見不同意見' },
@@ -271,6 +272,7 @@ export default function Home() {
   const [loveQuery, setLoveQuery] = useState<LoveQuery>('guide');
   const [decisionId, setDecisionId] = useState('love');
   const [selectedLoveYear, setSelectedLoveYear] = useState<number | null>(null);
+  const [queryMode, setQueryMode] = useState<QueryMode>('love');
   const [message, setMessage] = useState('這是一張示範命盤，修改出生資料後即可重新排盤。');
   const selectedPalace = chart.palaces[selected] ?? chart.palaces[0];
   const palaceByIndex = useMemo(() => new Map(chart.palaces.map((p) => [p.index, p])), [chart]);
@@ -306,13 +308,12 @@ export default function Home() {
     event.preventDefault();
     try {
       const next = makeChart(date, hour, gender, calendar, leap);
-      const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-      const target = submitter?.value === 'chart' ? '#chart' : '#current-summary';
+      const target = queryMode === 'chart' ? '#chart' : '#current-summary';
       setChart(next);
       setReportName(name.trim() || '命盤主人');
       setSelected(next.palaces.find((p) => p.name === '命宮')?.index ?? 0);
       setSelectedLoveYear(null);
-      setMessage('命盤與正緣時機分析已更新。點選任一宮位，可查看完整星曜。');
+      setMessage(queryMode === 'chart' ? '十二宮命盤已更新。點選任一宮位，可查看完整星曜。' : '感情與正緣分析已更新，可從當前總結繼續深入查看。');
       requestAnimationFrame(() => document.querySelector(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch { setMessage('日期格式無法排盤，請檢查出生年月日後再試一次。'); }
   }
@@ -342,7 +343,16 @@ export default function Home() {
         <div className="visual-caption"><Compass size={17}/><span><b>不只看桃花</b>，也看對的人、對的時機與相處方式。</span></div>
       </div>
       <form className="birth-card entry-form" onSubmit={submit}>
-        <div className="form-heading"><span className="form-icon"><MoonStar size={24}/></span><div><h2>開始正緣分析</h2><p>請仔細核對出生資料</p></div></div>
+        <div className="query-mode-intro"><span>先選擇查詢方向</span><small>兩種查詢共用同一組出生資料</small></div>
+        <div className="query-mode-switch" role="group" aria-label="選擇查詢方向">
+          <button type="button" className={queryMode === 'chart' ? 'selected' : ''} aria-pressed={queryMode === 'chart'} onClick={() => setQueryMode('chart')}>
+            <MoonStar size={21}/><span><b>十二宮命盤</b><small>宮位、星曜與七大面向</small></span>
+          </button>
+          <button type="button" className={queryMode === 'love' ? 'selected' : ''} aria-pressed={queryMode === 'love'} onClick={() => setQueryMode('love')}>
+            <Heart size={21}/><span><b>感情／正緣</b><small>對象、關係與年份訊號</small></span>
+          </button>
+        </div>
+        <div className="form-heading"><span className="form-icon">{queryMode === 'chart' ? <MoonStar size={24}/> : <Heart size={24}/>}</span><div><h2>{queryMode === 'chart' ? '十二宮命盤查詢' : '感情與正緣查詢'}</h2><p>{queryMode === 'chart' ? '排出完整命盤並查看七大面向' : '從夫妻宮延伸關係與時機分析'}</p></div></div>
         <label><span>姓名或暱稱</span><div className="control"><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="報告中如何稱呼你" maxLength={24}/></div></label>
         <div className="segmented" aria-label="曆法"><button className={calendar === 'solar' ? 'selected' : ''} type="button" onClick={() => setCalendar('solar')}>國曆</button><button className={calendar === 'lunar' ? 'selected' : ''} type="button" onClick={() => setCalendar('lunar')}>農曆</button></div>
         <label><span>出生日期</span><div className="control"><CalendarDays size={17}/><input type="date" value={date} onChange={(e) => setDate(e.target.value)} min="1900-01-01" max="2100-12-31" required/></div></label>
@@ -353,9 +363,8 @@ export default function Home() {
         {calendar === 'lunar' && <label className="check"><input type="checkbox" checked={leap} onChange={(e) => setLeap(e.target.checked)}/> 此日期為閏月</label>}
         <div className="privacy-note"><LockKeyhole size={14}/><span>資料只在你的瀏覽器內計算，不會上傳或儲存。</span></div>
         <p className="calculation-assumption">排盤假設：台灣民用時間、不校正出生地真太陽時；早子與晚子分開處理。</p>
-        <button className="primary-button love-submit" type="submit" value="love"><Heart size={17}/> 立即分析正緣 <ArrowRight size={16}/></button>
-        <button className="chart-submit" type="submit" value="chart">先查看完整十二宮命盤</button>
-        <div className="entry-steps"><span><b>1</b>填寫資料</span><i/><span><b>2</b>完成排盤</span><i/><span><b>3</b>正緣分析</span></div>
+        <button className="primary-button love-submit" type="submit">{queryMode === 'chart' ? <MoonStar size={17}/> : <Heart size={17}/>} {queryMode === 'chart' ? '排出十二宮命盤' : '查看感情分析'} <ArrowRight size={16}/></button>
+        <div className="entry-steps"><span><b>1</b>選擇查詢</span><i/><span><b>2</b>填寫資料</span><i/><span><b>3</b>{queryMode === 'chart' ? '查看命盤' : '閱讀感情報告'}</span></div>
       </form>
     </section>
 
