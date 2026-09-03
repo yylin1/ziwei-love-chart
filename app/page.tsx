@@ -154,6 +154,16 @@ const SYSTEM_LAYERS = [
   { level: 'D', title: '幸福建議', status: '行動設計', confidence: '需現實驗證', text: '依命盤傾向與目前關係狀態產生可執行建議，結果應配合真實互動與個人選擇調整。' },
 ];
 
+const DECISION_PROMPTS: Record<string, { question: string; experiment: string }> = {
+  self: { question: '這個選擇符合真正的我，還是只是在回應別人的期待？', experiment: '先做一個七天的小型嘗試，記錄能量是增加還是消耗。' },
+  career: { question: '這條路能累積我的核心能力，還是只有短期看起來安全？', experiment: '用一次小專案測試工作內容、合作方式與成長空間。' },
+  wealth: { question: '這個決定的最好、普通與最壞情境，我各自承受得起嗎？', experiment: '先設定可承受上限與停損點，再進行小額驗證。' },
+  love: { question: '我看見的是對方穩定的行動，還是自己對關係的想像？', experiment: '用三次真實互動觀察守信、溝通與界線，而不只看心動。' },
+  social: { question: '這段合作是否有清楚分工，也允許我說出不同意見？', experiment: '先完成一個範圍明確的小任務，再決定是否長期合作。' },
+  family: { question: '哪些責任是我願意承擔，哪些只是長期習慣？', experiment: '挑一件最常卡住的事，改用具體需求與期限重新溝通。' },
+  wellbeing: { question: '身體現在是在提醒我調整，還是需要專業協助？', experiment: '記錄一週睡眠、壓力與不適；持續或嚴重症狀應直接就醫。' },
+};
+
 const LOVE_STATUS_ADVICE: Record<LoveStatus, { label: string; title: string; steps: string[] }> = {
   single: { label: '目前單身', title: '把緣分變成可遇見的行動', steps: ['依高機會年份的相遇場景，固定參與能重複見面的活動。','前三次互動先看穩定度、尊重與價值觀，不急著把心動等同適合。','每月安排兩次主動邀約或新社群接觸，讓機會有實際入口。'] },
   developing: { label: '曖昧／認識中', title: '讓模糊關係逐步清晰', steps: ['直接確認彼此目前的關係期待，而不是只猜測訊息頻率。','觀察對方遇到不同意見時，能否溝通、修復並尊重界線。','設定自己的觀察期限；持續模糊也是一種答案。'] },
@@ -259,6 +269,7 @@ export default function Home() {
   const [loveStatus, setLoveStatus] = useState<LoveStatus>('single');
   const [forecastMode, setForecastMode] = useState<ForecastMode>('balanced');
   const [loveQuery, setLoveQuery] = useState<LoveQuery>('guide');
+  const [decisionId, setDecisionId] = useState('love');
   const [selectedLoveYear, setSelectedLoveYear] = useState<number | null>(null);
   const [message, setMessage] = useState('這是一張示範命盤，修改出生資料後即可重新排盤。');
   const selectedPalace = chart.palaces[selected] ?? chart.palaces[0];
@@ -274,6 +285,15 @@ export default function Home() {
     return (matching.length ? matching : [...loveForecast.years].sort((a, b) => b.score - a.score).slice(0, modeDefinition.count)).sort((a, b) => a.year - b.year);
   }, [loveForecast, modeDefinition]);
   const activeLoveYear = modeYears.find((item) => item.year === selectedLoveYear) ?? modeYears.find((item) => item.year >= new Date().getFullYear()) ?? modeYears[0];
+  const activeDecision = reports.find((report) => report.id === decisionId) ?? reports[0];
+  const decisionYearContext = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const horoscope = chart.horoscope(`${currentYear}-07-01`, 6);
+    const index = horoscope.yearly.palaceNames.indexOf(activeDecision.primary);
+    const palace = chart.palaces[index];
+    const signals = (horoscope.yearly.stars?.[index] ?? []).map((star) => star.name).slice(0, 4);
+    return { currentYear, palace, signals };
+  }, [chart, activeDecision]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -293,7 +313,7 @@ export default function Home() {
   return <main>
     <header className="site-header">
       <a className="brand" href="#top" aria-label="紫微命盤首頁"><span className="brand-mark">紫</span><span><b>紫微命盤</b><small>ZI WEI CHART</small></span></a>
-      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#love-timing">正緣時機</a><a href="#guide">學前指南</a></nav>
+      <nav aria-label="主選單"><a href="#chart">我的命盤</a><a href="#report">七大分析</a><a href="#decision">命運導航</a><a href="#love-timing">正緣時機</a><a href="#guide">學前指南</a></nav>
     </header>
 
     <section className="hero love-entry" id="top">
@@ -387,6 +407,26 @@ export default function Home() {
       </div>
 
       <div className="report-disclaimer"><Info size={17}/><p><b>閱讀提醒</b>：本報告是依紫微斗數規則產生的文化性、自我探索內容，不是對事件的保證。健康、財務、法律與重大人生決策，請以合格專業人士的意見為準。</p></div>
+    </section>
+
+    <section className="decision-section" id="decision">
+      <div className="decision-intro">
+        <span className="eyebrow"><Compass size={14}/> 命理不是替你作決定</span>
+        <h2>讀懂「命」，看清「運」，做出你的「選」</h2>
+        <p>依 Podcast 公開內容整理的產品原則：命盤提供自我認識與局勢線索，真正的用途不是把未來說死，而是在不確定中找到更適合的選擇與內在安定。</p>
+      </div>
+
+      <div className="decision-picker" role="tablist" aria-label="選擇要思考的人生面向">
+        {reports.map((report) => <button type="button" role="tab" aria-selected={decisionId === report.id} className={decisionId === report.id ? 'selected' : ''} key={report.id} onClick={() => setDecisionId(report.id)}>{report.title}</button>)}
+      </div>
+
+      <div className="decision-path">
+        <article><span className="decision-mark">命</span><small>你帶著什麼條件</small><h3>{activeDecision.title}・本命基調</h3><p>{activeDecision.basis}</p><div><b>可以運用</b>{activeDecision.strengths}</div><div><b>需要覺察</b>{activeDecision.watch}</div></article>
+        <article><span className="decision-mark">運</span><small>現在什麼被放大</small><h3>{decisionYearContext.currentYear}・{activeDecision.primary}議題</h3><p>今年的{activeDecision.primary}流轉到本命「{decisionYearContext.palace?.name || '相關宮位'}」，{decisionYearContext.palace ? MEETING_SCENES[decisionYearContext.palace.name] || '適合從日常情境觀察變化' : '需配合實際處境觀察'}。</p><div><b>流年線索</b>{decisionYearContext.signals.length ? decisionYearContext.signals.join('、') : '沒有單一流曜足以直接下結論'}</div><div><b>十年背景</b>{activeDecade ? `目前為${activeDecade.name}大限（${activeDecade.decadal.range[0]}–${activeDecade.decadal.range[1]} 歲）` : '以本命與實際處境交叉確認'}</div></article>
+        <article className="choice-card"><span className="decision-mark">選</span><small>你能採取什麼行動</small><h3>把預測改寫成可驗證的問題</h3><blockquote>{DECISION_PROMPTS[activeDecision.id].question}</blockquote><div><b>下一步</b>{activeDecision.action}</div><div><b>小型驗證</b>{DECISION_PROMPTS[activeDecision.id].experiment}</div></article>
+      </div>
+
+      <div className="decision-rule"><ShieldCheck size={18}/><div><b>平台採用的界線</b><p>不以單顆星或一句斷語取代決策；不提供死亡時間、疾病診斷或必然事件判定。每個結論都應能回到命盤訊號，也能被現實經驗修正。</p></div><a href="https://www.youtube.com/watch?v=cpgyLLUdJrs" target="_blank" rel="noreferrer">收聽原始 Podcast <ArrowRight size={14}/></a></div>
     </section>
 
     <section className="love-section" id="love-timing">
